@@ -1,0 +1,27 @@
+name: BlackArch repository audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 6 * * 3"
+
+permissions:
+  contents: read
+
+jobs:
+  package-availability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit every catalog package
+        run: |
+          python -m pip install --disable-pip-version-check .
+          blackforge --json status --all --remote --output blackforge-audit.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blackforge-repository-audit
+          path: blackforge-audit.json

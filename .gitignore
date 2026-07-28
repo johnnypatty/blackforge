@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+blackforge-audit.json
+packaging/arch/blackforge_cli-0.2.0.tar.gz

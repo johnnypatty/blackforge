@@ -1,0 +1,35 @@
+# Maintainer: BlackForge contributors
+
+pkgname=blackforge
+_python_name=blackforge_cli
+pkgver=0.2.0
+pkgrel=1
+pkgdesc='Unofficial package navigator and manager for the BlackArch repository'
+arch=('any')
+url='https://github.com/johnnypatty/blackforge'
+license=('MIT')
+depends=('python' 'pacman')
+makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
+optdepends=('sudo: privilege escalation when BlackForge is run by a non-root user')
+source=("${_python_name}-${pkgver}-final.tar.gz")
+sha256sums=('ab6e7f436afd97c18230fa1a115b237dee03d450968ed899026d05d4091074ad')
+
+build() {
+  cd "${srcdir}/${_python_name}-${pkgver}"
+  python -m build --wheel --no-isolation
+  PYTHONPATH=src python -m blackforge completion bash > "${srcdir}/blackforge.bash"
+  PYTHONPATH=src python -m blackforge completion zsh > "${srcdir}/_blackforge"
+  PYTHONPATH=src python -m blackforge completion fish > "${srcdir}/blackforge.fish"
+}
+
+package() {
+  cd "${srcdir}/${_python_name}-${pkgver}"
+  python -m installer --destdir="${pkgdir}" dist/*.whl
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm644 "${srcdir}/blackforge.bash" \
+    "${pkgdir}/usr/share/bash-completion/completions/blackforge"
+  install -Dm644 "${srcdir}/_blackforge" \
+    "${pkgdir}/usr/share/zsh/site-functions/_blackforge"
+  install -Dm644 "${srcdir}/blackforge.fish" \
+    "${pkgdir}/usr/share/fish/vendor_completions.d/blackforge.fish"
+}

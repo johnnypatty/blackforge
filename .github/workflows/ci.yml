@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip pytest
+      - run: python -m pip install -e .
+      - run: pytest
+      - run: blackforge --version
+      - run: blackforge search network mapper --limit 5
+
+  arch-linux-smoke:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Arch prerequisites
+        run: pacman -Syu --noconfirm python python-pip curl gnupg
+      - name: Install BlackForge with the Linux installer
+        run: bash install.sh
+      - name: Verify catalog and shell completion
+        run: |
+          /root/.local/bin/blackforge --version
+          /root/.local/bin/blackforge names --prefix amas | grep -qx amass
+          /root/.local/bin/blackforge completion bash | grep -q complete
+      - name: Enable BlackArch, install a package, and remove it
+        run: |
+          /root/.local/bin/blackforge -y install --setup-repo 0trace
+          pacman -Q 0trace
+          /root/.local/bin/blackforge -y remove 0trace
