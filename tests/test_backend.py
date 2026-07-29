@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import sys
 from pathlib import Path
 from subprocess import CompletedProcess
 
@@ -75,6 +76,51 @@ def test_dry_run_does_not_suppress_read_only_commands(
     result = Runner(dry_run=True).run(["pacman", "-Q"], capture=True)
     assert result.planned is False
     assert result.stdout == "result"
+
+
+def test_runner_tee_captures_and_streams_both_outputs(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = Runner().run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "print('visible stdout'); "
+                "print('failed retrieving file', file=sys.stderr)"
+            ),
+        ],
+        tee=True,
+    )
+
+    displayed = capsys.readouterr()
+    assert result.returncode == 0
+    assert result.stdout.splitlines() == ["visible stdout"]
+    assert result.stderr.splitlines() == ["failed retrieving file"]
+    assert displayed.out == result.stdout
+    assert displayed.err == result.stderr
+
+
+@pytest.mark.parametrize("operation", ["install", "remove", "upgrade"])
+def test_pacman_mutations_capture_while_streaming(
+    operation: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = PacmanBackend(assume_yes=True)
+    monkeypatch.setattr(PacmanBackend, "supported", property(lambda self: True))
+    monkeypatch.setattr(backend, "_privileged", list)
+    calls: list[dict[str, object]] = []
+
+    def run(args, **kwargs):
+        calls.append({"args": list(args), **kwargs})
+        return CommandResult(list(args), 0)
+
+    monkeypatch.setattr(backend.runner, "run", run)
+    getattr(backend, operation)(["nmap"])
+
+    assert calls[0]["mutating"] is True
+    assert calls[0]["tee"] is True
 
 
 def test_package_executable_query_failure_is_not_hidden(

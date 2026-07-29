@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">BlackForge</title>
+  <desc id="desc">A dark shield containing a glowing anvil and spark.</desc>
+  <defs>
+    <linearGradient id="shield" x1="24" y1="12" x2="137" y2="151" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#202938"/>
+      <stop offset="1" stop-color="#05070A"/>
+    </linearGradient>
+    <linearGradient id="forge" x1="48" y1="53" x2="113" y2="119" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDBA74"/>
+      <stop offset=".45" stop-color="#F97316"/>
+      <stop offset="1" stop-color="#DC2626"/>
+    </linearGradient>
+  </defs>
+  <path d="M80 8 140 29v43c0 38-22 65-60 80-38-15-60-42-60-80V29L80 8Z" fill="url(#shield)" stroke="#475569" stroke-width="4"/>
+  <path d="M48 62h59c7 0 12-5 12-12h10c0 17-10 27-28 29l-8 1-5 13h13v11H58V93h14l-5-13H48c-8 0-14-4-17-11l17-7Z" fill="url(#forge)"/>
+  <path d="M68 104h25l7 20H61l7-20Z" fill="#CBD5E1"/>
+  <path d="m54 39 4 10 10 4-10 4-4 10-4-10-10-4 10-4 4-10Z" fill="#FBBF24"/>
+  <circle cx="116" cy="93" r="4" fill="#FB923C"/>
+  <circle cx="125" cy="82" r="2.5" fill="#FBBF24"/>
+</svg>

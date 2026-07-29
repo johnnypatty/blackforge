@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blackforge-cli"
-version = "0.2.0"
-description = "An unofficial, safety-minded package navigator for the official BlackArch repository"
+version = "0.3.0"
+description = "An unofficial, safety-minded Arch Linux manager for BlackArch and curated security tools"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

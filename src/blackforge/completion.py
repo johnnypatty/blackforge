@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 COMMANDS = (
-    "setup sync update-catalog list names search show categories doctor status check "
+    "help version setup sync update-catalog list names search show info categories "
+    "doctor status check "
     "install get add remove rm uninstall upgrade repo profile export "
-    "completion interactive"
+    "completion interactive tui plan history resume mirror updates self-update "
+    "env maintenance collection"
 )
 
 
@@ -21,7 +23,7 @@ _blackforge_complete() {{
     fi
 
     case "$command" in
-        install|get|add|remove|rm|uninstall|show|status|check|upgrade)
+        install|get|add|remove|rm|uninstall|show|info|status|check|upgrade)
             mapfile -t COMPREPLY < <(
                 compgen -W "$(blackforge names --prefix "$current")" -- "$current"
             )
@@ -40,7 +42,7 @@ _blackforge() {{
         return
     fi
     case "$words[2]" in
-        install|get|add|remove|rm|uninstall|show|status|check|upgrade)
+        install|get|add|remove|rm|uninstall|show|info|status|check|upgrade)
             packages=("${{(@f)$(blackforge names --prefix "$PREFIX")}}")
             _describe 'BlackArch package' packages
             ;;
@@ -52,6 +54,6 @@ compdef _blackforge blackforge
         return f"""# fish completion for BlackForge
 complete -c blackforge -f
 complete -c blackforge -n '__fish_use_subcommand' -a '{COMMANDS}'
-complete -c blackforge -n '__fish_seen_subcommand_from install get add remove rm uninstall show status check upgrade' -a '(blackforge names --prefix (commandline -ct))'
+complete -c blackforge -n '__fish_seen_subcommand_from install get add remove rm uninstall show info status check upgrade' -a '(blackforge names --prefix (commandline -ct))'
 """
     raise ValueError(f"Unsupported shell: {shell}")

@@ -20,9 +20,26 @@ PY
 project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
 config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
-install_root="${data_home}/blackforge"
+if [[ "$HOME" != /* || "$data_home" != /* || "$config_home" != /* ]]; then
+    printf 'HOME and XDG data/config paths must be absolute.\n' >&2
+    exit 1
+fi
+raw_install_root="${data_home}/blackforge"
+if [[ -L "$raw_install_root" ]]; then
+    printf 'Refusing a symbolic-link installation directory: %s\n' \
+        "$raw_install_root" >&2
+    exit 1
+fi
+install_root="$(readlink -m -- "$raw_install_root")"
+if [[ "$install_root" == "/blackforge" ]]; then
+    printf 'Refusing unsafe install path: %s\n' "$install_root" >&2
+    exit 1
+fi
+data_home="$(readlink -m -- "$data_home")"
+config_home="$(readlink -m -- "$config_home")"
+home_dir="$(readlink -m -- "$HOME")"
 venv="${install_root}/venv"
-bin_dir="${HOME}/.local/bin"
+bin_dir="${home_dir}/.local/bin"
 launcher="${bin_dir}/blackforge"
 marker="${install_root}/.blackforge-install"
 marker_value='blackforge-user-install-v1'

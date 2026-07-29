@@ -3,7 +3,7 @@
   "note": "Availability is verified from repository metadata. Runtime behavior is not tested and installed state is unknown.",
   "metadata": {
     "repository_source": "https://www.blackarch.org/blackarch/blackarch/os/x86_64/blackarch.db",
-    "repository_fetched_at": "2026-07-28T11:09:34+00:00",
+    "repository_fetched_at": "2026-07-29T09:47:55+00:00",
     "repository_last_modified": "Mon, 27 Jul 2026 14:27:10 GMT",
     "repository_sha256": "6f59e5ed9c25483adba4b94ee16788432ef547b162084418c4c14ec7b674ddef",
     "repository_package_count": 5050

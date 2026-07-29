@@ -1,6 +1,6 @@
 # BlackArch package-availability snapshot
 
-Generated on 2026-07-28 from:
+Refreshed on 2026-07-29 from:
 
 - Website catalog: <https://www.blackarch.org/tools.html>
 - x86_64 repository database:
@@ -36,7 +36,7 @@ Four entries had a different base version between the website and repository:
 | `user-scanner` | `1.4.1` | `1.4.2-1` |
 
 The full 2,861-row evidence is in
-[`blackarch-package-health-2026-07-28.json`](blackarch-package-health-2026-07-28.json).
+[`blackarch-package-health-2026-07-29.json`](blackarch-package-health-2026-07-29.json).
 
 Repository metadata:
 
@@ -56,4 +56,3 @@ Repeat the check at any time:
 ```bash
 blackforge --json status --all --remote --output blackforge-audit.json
 ```
-

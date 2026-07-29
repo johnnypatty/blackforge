@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest a focused, safe BlackForge improvement
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What Arch/BlackArch package-management problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include example commands and expected output.
+    validations:
+      required: true
+  - type: dropdown
+    id: mutation
+    attributes:
+      label: Does it change the system?
+      options:
+        - No, it is read-only
+        - Yes, after confirmation
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and rollback
+      description: How should dry-run, validation, confirmation, and recovery work?
+    validations:
+      required: true

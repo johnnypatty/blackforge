@@ -6,6 +6,7 @@ import os
 import re
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -167,7 +168,10 @@ class Catalog:
         }
 
     def write(self, path: Path) -> None:
-        atomic_write_json(path, self.to_dict())
+        try:
+            atomic_write_json(path, self.to_dict())
+        except OSError as exc:
+            raise CatalogError(f"Unable to save catalog {path}: {exc}") from exc
 
     @classmethod
     def from_dict(cls, value: dict[str, object]) -> Catalog:
@@ -212,7 +216,11 @@ class Catalog:
     @classmethod
     def read(cls, path: Path) -> Catalog:
         try:
+            if path.stat().st_size > MAX_CATALOG_BYTES:
+                raise CatalogError("Catalog file exceeds its safety size limit")
             value = json.loads(path.read_text(encoding="utf-8"))
+        except CatalogError:
+            raise
         except (OSError, json.JSONDecodeError) as exc:
             raise CatalogError(f"Unable to read catalog {path}: {exc}") from exc
         if not isinstance(value, dict):
@@ -249,6 +257,20 @@ def download_catalog(
     timeout: int = 45,
     context: ssl.SSLContext | None = None,
 ) -> Catalog:
+    parsed_url = urllib.parse.urlsplit(url)
+    initial_host = (parsed_url.hostname or "").casefold()
+    if (
+        parsed_url.scheme != "https"
+        or not initial_host
+        or parsed_url.username
+        or parsed_url.password
+    ):
+        raise CatalogError("Catalog URL must be HTTPS and contain no credentials")
+    allowed_hosts = (
+        {"blackarch.org", "www.blackarch.org"}
+        if initial_host in {"blackarch.org", "www.blackarch.org"}
+        else {initial_host}
+    )
     request = urllib.request.Request(
         url,
         headers={
@@ -258,8 +280,14 @@ def download_catalog(
     try:
         with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
             final_url = response.geturl()
-            if not final_url.lower().startswith("https://"):
-                raise CatalogError(f"Refusing non-HTTPS catalog response: {final_url}")
+            final = urllib.parse.urlsplit(final_url)
+            if (
+                final.scheme != "https"
+                or (final.hostname or "").casefold() not in allowed_hosts
+                or final.username
+                or final.password
+            ):
+                raise CatalogError(f"Refusing untrusted catalog response: {final_url}")
             data = response.read(MAX_CATALOG_BYTES + 1)
     except (OSError, urllib.error.URLError) as exc:
         raise CatalogError(f"Unable to download {url}: {exc}") from exc
@@ -279,7 +307,12 @@ def bundled_catalog() -> Catalog:
 
 def default_cache_path() -> Path:
     root = os.environ.get("XDG_CACHE_HOME")
-    base = Path(root) if root else Path.home() / ".cache"
+    candidate = Path(root) if root else None
+    base = (
+        candidate
+        if candidate is not None and candidate.is_absolute()
+        else Path.home() / ".cache"
+    )
     return base / "blackforge" / "tools.json"
 
 

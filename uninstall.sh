@@ -8,8 +8,21 @@ fi
 
 data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
 config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
-install_root="${data_home}/blackforge"
-launcher="${HOME}/.local/bin/blackforge"
+if [[ "$HOME" != /* || "$data_home" != /* || "$config_home" != /* ]]; then
+    printf 'HOME and XDG data/config paths must be absolute.\n' >&2
+    exit 1
+fi
+raw_install_root="${data_home}/blackforge"
+if [[ -L "$raw_install_root" ]]; then
+    printf 'Refusing a symbolic-link installation directory: %s\n' \
+        "$raw_install_root" >&2
+    exit 1
+fi
+install_root="$(readlink -m -- "$raw_install_root")"
+data_home="$(readlink -m -- "$data_home")"
+config_home="$(readlink -m -- "$config_home")"
+home_dir="$(readlink -m -- "$HOME")"
+launcher="${home_dir}/.local/bin/blackforge"
 venv="${install_root}/venv"
 marker="${install_root}/.blackforge-install"
 marker_value='blackforge-user-install-v1'

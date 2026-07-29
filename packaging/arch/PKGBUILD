@@ -2,9 +2,9 @@
 
 pkgname=blackforge
 _python_name=blackforge_cli
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
-pkgdesc='Unofficial package navigator and manager for the BlackArch repository'
+pkgdesc='Safety-minded manager for BlackArch and curated Arch security tools'
 arch=('any')
 url='https://github.com/johnnypatty/blackforge'
 license=('MIT')
@@ -12,7 +12,7 @@ depends=('python' 'pacman')
 makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 optdepends=('sudo: privilege escalation when BlackForge is run by a non-root user')
 source=("${_python_name}-${pkgver}-final.tar.gz")
-sha256sums=('ab6e7f436afd97c18230fa1a115b237dee03d450968ed899026d05d4091074ad')
+sha256sums=('a85eb10de190b99f41f90dfdddef1b99f7420e83bbbe9583692c317420a57c56')
 
 build() {
   cd "${srcdir}/${_python_name}-${pkgver}"
