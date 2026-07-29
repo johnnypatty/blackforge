@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import hashlib
 import os
 import platform
@@ -13,9 +14,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import __version__
+
 BLACKARCH_STRAP_URL = "https://blackarch.org/strap.sh"
 EXPECTED_STRAP_SHA1 = "00688950aaf5e5804d2abebb8d3d3ea1d28525ed"
-PACKAGE_NAME = re.compile(r"^[a-zA-Z0-9@._+:-]+$")
+PACKAGE_NAME = re.compile(r"^[a-zA-Z0-9@._+][a-zA-Z0-9@._+-]*$")
+MAX_STRAP_BYTES = 1024 * 1024
 
 
 class BackendError(RuntimeError):
@@ -41,9 +45,10 @@ class Runner:
         *,
         capture: bool = False,
         timeout: int | None = None,
+        mutating: bool = False,
     ) -> CommandResult:
         command = list(args)
-        if self.dry_run:
+        if self.dry_run and mutating:
             return CommandResult(command, 0, planned=True)
         try:
             completed = subprocess.run(
@@ -57,6 +62,8 @@ class Runner:
             raise BackendError(f"Command not found: {command[0]}") from exc
         except subprocess.TimeoutExpired as exc:
             raise BackendError(f"Command timed out: {' '.join(command)}") from exc
+        except OSError as exc:
+            raise BackendError(f"Unable to run {command[0]}: {exc}") from exc
         return CommandResult(
             args=command,
             returncode=completed.returncode,
@@ -67,9 +74,13 @@ class Runner:
 
 def validate_package_names(names: Sequence[str]) -> list[str]:
     cleaned: list[str] = []
+    seen: set[str] = set()
     for name in names:
         if not PACKAGE_NAME.fullmatch(name):
             raise BackendError(f"Unsafe or invalid package name: {name!r}")
+        if name in seen:
+            continue
+        seen.add(name)
         cleaned.append(name)
     if not cleaned:
         raise BackendError("At least one package is required")
@@ -87,11 +98,38 @@ class PacmanBackend:
 
     @property
     def repo_enabled(self) -> bool:
+        return self._config_has_repository(Path("/etc/pacman.conf"), "blackarch")
+
+    def _config_has_repository(
+        self,
+        path: Path,
+        repository: str,
+        visited: set[Path] | None = None,
+    ) -> bool:
+        visited = visited or set()
         try:
-            text = Path("/etc/pacman.conf").read_text(encoding="utf-8", errors="replace")
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        if resolved in visited:
+            return False
+        visited.add(resolved)
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return False
-        return re.search(r"(?m)^\s*\[blackarch\]\s*$", text) is not None
+        for raw_line in text.splitlines():
+            line = raw_line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            if line.casefold() == f"[{repository.casefold()}]":
+                return True
+            match = re.fullmatch(r"Include\s*=\s*(.+)", line, re.IGNORECASE)
+            if match:
+                for included in glob.glob(match.group(1).strip()):
+                    if self._config_has_repository(Path(included), repository, visited):
+                        return True
+        return False
 
     def require_supported(self) -> None:
         if not self.supported:
@@ -135,7 +173,8 @@ class PacmanBackend:
         validate_package_names([package])
         result = self.runner.run(["pacman", "-Ql", package], capture=True, timeout=60)
         if result.returncode != 0:
-            return (), ()
+            detail = (result.stderr or result.stdout).strip()
+            raise BackendError(f"Unable to inspect installed package {package}: {detail}")
         declared: list[str] = []
         missing: list[str] = []
         for line in result.stdout.splitlines():
@@ -156,18 +195,18 @@ class PacmanBackend:
         args = ["pacman", "-S", "--needed"]
         if self.assume_yes:
             args.append("--noconfirm")
-        args.extend(packages)
+        args.extend(["--", *packages])
         self.require_supported()
-        return self.runner.run(self._privileged(args))
+        return self.runner.run(self._privileged(args), mutating=True)
 
     def remove(self, names: Sequence[str], *, purge: bool = False) -> CommandResult:
         packages = validate_package_names(names)
         args = ["pacman", "-Rns" if purge else "-R"]
         if self.assume_yes:
             args.append("--noconfirm")
-        args.extend(packages)
+        args.extend(["--", *packages])
         self.require_supported()
-        return self.runner.run(self._privileged(args))
+        return self.runner.run(self._privileged(args), mutating=True)
 
     def upgrade(self, names: Sequence[str] = ()) -> CommandResult:
         packages = validate_package_names(names) if names else []
@@ -176,46 +215,61 @@ class PacmanBackend:
             args.append("--needed")
         if self.assume_yes:
             args.append("--noconfirm")
-        args.extend(packages)
+        if packages:
+            args.extend(["--", *packages])
         self.require_supported()
-        return self.runner.run(self._privileged(args))
+        return self.runner.run(self._privileged(args), mutating=True)
 
     def download_strap(
         self,
         *,
-        allow_changed: bool = False,
-    ) -> tuple[Path, str, str]:
+        reviewed_sha256: str | None = None,
+    ) -> tuple[Path, str, str, bool]:
         request = urllib.request.Request(
             BLACKARCH_STRAP_URL,
-            headers={"User-Agent": "BlackForge/0.1 repository setup"},
+            headers={"User-Agent": f"BlackForge/{__version__} repository setup"},
         )
         try:
             with urllib.request.urlopen(request, timeout=45) as response:
                 final_url = response.geturl()
                 if not final_url.lower().startswith("https://"):
                     raise BackendError(f"Refusing non-HTTPS setup script: {final_url}")
-                data = response.read()
+                data = response.read(MAX_STRAP_BYTES + 1)
         except OSError as exc:
             raise BackendError(f"Unable to download the official setup script: {exc}") from exc
+        if len(data) > MAX_STRAP_BYTES:
+            raise BackendError("Official setup script exceeded the 1 MiB safety limit")
         if not data.startswith(b"#!/"):
             raise BackendError("Downloaded setup script does not have a shebang")
         sha1 = hashlib.sha1(data).hexdigest()
-        if sha1 != EXPECTED_STRAP_SHA1 and not allow_changed:
+        sha256 = hashlib.sha256(data).hexdigest()
+        checksum_matched = sha1 == EXPECTED_STRAP_SHA1
+        if reviewed_sha256 is not None and not re.fullmatch(
+            r"[0-9a-fA-F]{64}", reviewed_sha256
+        ):
+            raise BackendError("--strap-sha256 must be exactly 64 hexadecimal characters")
+        reviewed_matches = (
+            reviewed_sha256 is not None and reviewed_sha256.casefold() == sha256
+        )
+        if not checksum_matched and not reviewed_matches:
             raise BackendError(
                 "The official setup script no longer matches BlackForge's pinned "
                 f"SHA-1 (expected {EXPECTED_STRAP_SHA1}, got {sha1}). Review the "
-                "current BlackArch installation page and update BlackForge, or use "
-                "--allow-changed-strap after manual verification."
+                "downloaded script and rerun with "
+                f"`--strap-sha256 {sha256}` only if you trust that exact file."
             )
         descriptor, raw_path = tempfile.mkstemp(prefix="blackforge-strap-", suffix=".sh")
         path = Path(raw_path)
         with os.fdopen(descriptor, "wb") as handle:
             handle.write(data)
         path.chmod(path.stat().st_mode | stat.S_IXUSR)
-        return path, hashlib.sha256(data).hexdigest(), sha1
+        return path, sha256, sha1, checksum_matched
 
     def enable_repo(self, script: Path) -> CommandResult:
         self.require_supported()
         if not script.is_file():
             raise BackendError(f"Setup script does not exist: {script}")
-        return self.runner.run(self._privileged(["bash", str(script)]))
+        return self.runner.run(
+            self._privileged(["bash", str(script)]),
+            mutating=True,
+        )

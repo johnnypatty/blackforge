@@ -35,11 +35,11 @@ jobs:
         run: bash install.sh
       - name: Verify catalog and shell completion
         run: |
-          /root/.local/bin/blackforge --version
-          /root/.local/bin/blackforge names --prefix amas | grep -qx amass
-          /root/.local/bin/blackforge completion bash | grep -q complete
+          "${HOME}/.local/bin/blackforge" --version
+          "${HOME}/.local/bin/blackforge" names --prefix amas | grep -qx amass
+          "${HOME}/.local/bin/blackforge" completion bash | grep -q complete
       - name: Enable BlackArch, install a package, and remove it
         run: |
-          /root/.local/bin/blackforge -y install --setup-repo 0trace
+          "${HOME}/.local/bin/blackforge" -y install --setup-repo 0trace
           pacman -Q 0trace
-          /root/.local/bin/blackforge -y remove 0trace
+          "${HOME}/.local/bin/blackforge" -y remove 0trace

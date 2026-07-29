@@ -24,10 +24,8 @@ install_root="${data_home}/blackforge"
 venv="${install_root}/venv"
 bin_dir="${HOME}/.local/bin"
 launcher="${bin_dir}/blackforge"
-
-mkdir -p -- "$install_root" "$bin_dir"
-python3 -m venv "$venv"
-"${venv}/bin/python" -m pip install --disable-pip-version-check --upgrade --no-deps "$project_dir"
+marker="${install_root}/.blackforge-install"
+marker_value='blackforge-user-install-v1'
 
 if [[ -L "$launcher" ]]; then
     existing_target="$(readlink -- "$launcher")"
@@ -39,6 +37,28 @@ elif [[ -e "$launcher" ]]; then
     printf 'Refusing to replace an existing file: %s\n' "$launcher" >&2
     exit 1
 fi
+
+if [[ -e "$install_root" ]]; then
+    marker_ok=false
+    legacy_ok=false
+    if [[ -f "$marker" && "$(cat -- "$marker")" == "$marker_value" ]]; then
+        marker_ok=true
+    fi
+    if [[ -L "$launcher" && -f "${venv}/pyvenv.cfg" ]]; then
+        legacy_ok=true
+    fi
+    if [[ "$marker_ok" != true && "$legacy_ok" != true ]]; then
+        printf 'Refusing to modify an installation directory not owned by BlackForge: %s\n' \
+            "$install_root" >&2
+        exit 1
+    fi
+fi
+
+mkdir -p -- "$install_root" "$bin_dir"
+printf '%s\n' "$marker_value" > "$marker"
+python3 -m venv "$venv"
+"${venv}/bin/python" -m pip install --disable-pip-version-check --upgrade --no-deps "$project_dir"
+
 ln -sfn -- "${venv}/bin/blackforge" "$launcher"
 
 bash_completion="${data_home}/bash-completion/completions"

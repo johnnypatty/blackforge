@@ -19,7 +19,13 @@ jobs:
       - name: Audit every catalog package
         run: |
           python -m pip install --disable-pip-version-check .
+          set +e
           blackforge --json status --all --remote --output blackforge-audit.json
+          result=$?
+          set -e
+          if [ "$result" -ne 0 ] && [ "$result" -ne 3 ]; then
+            exit "$result"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

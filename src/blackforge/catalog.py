@@ -15,10 +15,13 @@ from importlib import resources
 from pathlib import Path
 from typing import ClassVar
 
+from . import __version__
 from .models import Tool
+from .storage import atomic_write_json
 
 CATALOG_URL = "https://www.blackarch.org/tools.html"
 SCHEMA_VERSION = 1
+MAX_CATALOG_BYTES = 32 * 1024 * 1024
 
 
 class CatalogError(RuntimeError):
@@ -112,7 +115,7 @@ class Catalog:
 
     def __post_init__(self) -> None:
         self.tools.sort(key=lambda item: item.name.casefold())
-        names = [tool.name for tool in self.tools]
+        names = [tool.name.casefold() for tool in self.tools]
         if len(names) != len(set(names)):
             raise CatalogError("Catalog contains duplicate package names")
 
@@ -164,13 +167,7 @@ class Catalog:
         }
 
     def write(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(self.to_dict(), indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
+        atomic_write_json(path, self.to_dict())
 
     @classmethod
     def from_dict(cls, value: dict[str, object]) -> Catalog:
@@ -180,17 +177,36 @@ class Catalog:
         tools_value = value.get("tools")
         if not isinstance(tools_value, list):
             raise CatalogError("Catalog has no tools list")
+        tools: list[Tool] = []
+        for index, item in enumerate(tools_value):
+            if not isinstance(item, dict):
+                raise CatalogError(f"Catalog tool at index {index} is not an object")
+            try:
+                tool = Tool.from_dict(item)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise CatalogError(f"Malformed catalog tool at index {index}: {exc}") from exc
+            if not tool.name.strip() or not tool.category.strip():
+                raise CatalogError(
+                    f"Catalog tool at index {index} requires a name and category"
+                )
+            tools.append(tool)
         catalog = cls(
-            tools=[Tool.from_dict(item) for item in tools_value if isinstance(item, dict)],
+            tools=tools,
             source=str(value.get("source", "")),
             fetched_at=str(value.get("fetched_at", "")),
             source_sha256=str(value.get("source_sha256", "")),
         )
         declared_count = value.get("tool_count")
-        if declared_count is not None and int(declared_count) != len(catalog.tools):
-            raise CatalogError(
-                f"Catalog count mismatch: declared {declared_count}, parsed {len(catalog.tools)}"
-            )
+        if declared_count is not None:
+            try:
+                count = int(declared_count)
+            except (TypeError, ValueError) as exc:
+                raise CatalogError(f"Invalid catalog tool count: {declared_count!r}") from exc
+            if count != len(catalog.tools):
+                raise CatalogError(
+                    f"Catalog count mismatch: declared {declared_count}, "
+                    f"parsed {len(catalog.tools)}"
+                )
         return catalog
 
     @classmethod
@@ -235,16 +251,20 @@ def download_catalog(
 ) -> Catalog:
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "BlackForge/0.1 (+https://www.blackarch.org/)"},
+        headers={
+            "User-Agent": f"BlackForge/{__version__} (+https://www.blackarch.org/)"
+        },
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
             final_url = response.geturl()
             if not final_url.lower().startswith("https://"):
                 raise CatalogError(f"Refusing non-HTTPS catalog response: {final_url}")
-            data = response.read()
+            data = response.read(MAX_CATALOG_BYTES + 1)
     except (OSError, urllib.error.URLError) as exc:
         raise CatalogError(f"Unable to download {url}: {exc}") from exc
+    if len(data) > MAX_CATALOG_BYTES:
+        raise CatalogError("BlackArch catalog exceeded the 32 MiB safety limit")
     return parse_catalog_html(data, source=final_url)
 
 

@@ -32,7 +32,11 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.html:
-        catalog = parse_catalog_html(args.html.read_bytes(), source=CATALOG_URL)
+        catalog = parse_catalog_html(
+            args.html.read_bytes(),
+            source=CATALOG_URL,
+            minimum_rows=args.expect_minimum,
+        )
     else:
         catalog = download_catalog(args.url)
     if len(catalog.tools) < args.expect_minimum:

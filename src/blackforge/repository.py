@@ -10,9 +10,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import __version__
+
 REPOSITORY_DB_URL = (
     "https://www.blackarch.org/blackarch/blackarch/os/x86_64/blackarch.db"
 )
+MAX_REPOSITORY_DB_BYTES = 128 * 1024 * 1024
+MAX_DESCRIPTION_BYTES = 1024 * 1024
+MAX_REPOSITORY_MEMBERS = 20_000
 
 
 class RepositoryError(RuntimeError):
@@ -46,9 +51,15 @@ def parse_repository_database(
     packages: dict[str, str] = {}
     try:
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
-            for member in archive:
+            for index, member in enumerate(archive, start=1):
+                if index > MAX_REPOSITORY_MEMBERS:
+                    raise RepositoryError("Repository database contains too many members")
                 if not member.isfile() or not member.name.endswith("/desc"):
                     continue
+                if member.size > MAX_DESCRIPTION_BYTES:
+                    raise RepositoryError(
+                        f"Repository description is too large: {member.name}"
+                    )
                 extracted = archive.extractfile(member)
                 if extracted is None:
                     continue
@@ -79,17 +90,19 @@ def download_repository_database(
 ) -> RepositorySnapshot:
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "BlackForge/0.1 repository audit"},
+        headers={"User-Agent": f"BlackForge/{__version__} repository audit"},
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             final_url = response.geturl()
             if not final_url.lower().startswith("https://"):
                 raise RepositoryError(f"Refusing non-HTTPS repository database: {final_url}")
-            data = response.read()
+            data = response.read(MAX_REPOSITORY_DB_BYTES + 1)
             last_modified = response.headers.get("Last-Modified", "")
     except (OSError, urllib.error.URLError) as exc:
         raise RepositoryError(f"Unable to download {url}: {exc}") from exc
+    if len(data) > MAX_REPOSITORY_DB_BYTES:
+        raise RepositoryError("Repository database exceeded the 128 MiB safety limit")
     return parse_repository_database(
         data,
         source=final_url,

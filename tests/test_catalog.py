@@ -44,6 +44,28 @@ def test_catalog_rejects_duplicate_names() -> None:
         )
 
 
+def test_catalog_rejects_case_insensitive_duplicate_names() -> None:
+    with pytest.raises(CatalogError, match="duplicate"):
+        Catalog(
+            tools=[
+                Tool("Same", "1", "", "blackarch-misc"),
+                Tool("same", "2", "", "blackarch-misc"),
+            ],
+            source="test",
+            fetched_at="now",
+        )
+
+
+def test_catalog_rejects_malformed_tool_rows() -> None:
+    with pytest.raises(CatalogError, match="index 0"):
+        Catalog.from_dict(
+            {
+                "schema_version": 1,
+                "tools": ["not-an-object"],
+            }
+        )
+
+
 def test_bundled_catalog_is_large_and_consistent() -> None:
     from blackforge.catalog import bundled_catalog
 

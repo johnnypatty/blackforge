@@ -7,6 +7,13 @@ from .backend import PacmanBackend
 from .models import PackageState, Tool
 from .repository import RepositorySnapshot, package_base_version
 
+UNHEALTHY_STATUSES = {
+    "installed-files-missing",
+    "missing-from-repo",
+    "repo-not-enabled",
+    "unverified",
+}
+
 
 @dataclass(slots=True)
 class Audit:
@@ -30,6 +37,10 @@ class Audit:
             "counts": self.counts,
             "packages": [state.to_dict() for state in self.states],
         }
+
+    @property
+    def exit_code(self) -> int:
+        return 3 if any(state.status in UNHEALTHY_STATUSES for state in self.states) else 0
 
 
 def audit_tools(
@@ -102,7 +113,7 @@ def audit_tools(
         if (
             repository_version
             and tool.version
-            and repository_version != tool.version
+            and package_base_version(repository_version) != tool.version
             and status in {"available", "installed", "installed-files-ok", "installed-no-cli"}
         ):
             note = (

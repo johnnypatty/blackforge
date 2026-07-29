@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 COMMANDS = (
-    "setup sync list names search show categories doctor status check "
+    "setup sync update-catalog list names search show categories doctor status check "
     "install get add remove rm uninstall upgrade repo profile export "
     "completion interactive"
 )
@@ -55,4 +55,3 @@ complete -c blackforge -n '__fish_use_subcommand' -a '{COMMANDS}'
 complete -c blackforge -n '__fish_seen_subcommand_from install get add remove rm uninstall show status check upgrade' -a '(blackforge names --prefix (commandline -ct))'
 """
     raise ValueError(f"Unsupported shell: {shell}")
-

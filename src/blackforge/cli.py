@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
+import io
 import platform
 import shutil
 import sys
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
-from .backend import BackendError, PacmanBackend
+from .backend import BackendError, PacmanBackend, validate_package_names
 from .catalog import (
     CATALOG_URL,
     Catalog,
@@ -30,6 +30,17 @@ from .repository import (
     download_repository_database,
     read_repository_database,
 )
+from .storage import atomic_write_json, atomic_write_text
+
+
+def _positive_int(value: str) -> int:
+    try:
+        result = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if result < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return result
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -54,9 +65,9 @@ def _parser() -> argparse.ArgumentParser:
         help="enable and initialize the official BlackArch repository",
     )
     setup.add_argument(
-        "--allow-changed-strap",
-        action="store_true",
-        help="continue when strap.sh differs from the pinned official checksum",
+        "--strap-sha256",
+        metavar="SHA256",
+        help="approve one manually reviewed strap.sh by its exact SHA-256",
     )
 
     sync = commands.add_parser(
@@ -69,7 +80,7 @@ def _parser() -> argparse.ArgumentParser:
 
     listing = commands.add_parser("list", help="list catalog tools")
     listing.add_argument("--category")
-    listing.add_argument("--limit", type=int, default=100)
+    listing.add_argument("--limit", type=_positive_int, default=100)
 
     names = commands.add_parser(
         "names",
@@ -82,7 +93,7 @@ def _parser() -> argparse.ArgumentParser:
     search = commands.add_parser("search", help="search names, descriptions, and categories")
     search.add_argument("query", nargs="+")
     search.add_argument("--category")
-    search.add_argument("--limit", type=int, default=50)
+    search.add_argument("--limit", type=_positive_int, default=50)
 
     show = commands.add_parser("show", help="show one catalog entry")
     show.add_argument("name")
@@ -152,9 +163,9 @@ def _parser() -> argparse.ArgumentParser:
         help="download, verify, inspect, and run the official strap.sh",
     )
     repo_enable.add_argument(
-        "--allow-changed-strap",
-        action="store_true",
-        help="continue when strap.sh differs from the pinned official checksum",
+        "--strap-sha256",
+        metavar="SHA256",
+        help="approve one manually reviewed strap.sh by its exact SHA-256",
     )
 
     profile = commands.add_parser("profile", help="create or apply reproducible package profiles")
@@ -200,6 +211,15 @@ def _display_tools(tools: Sequence, as_json: bool) -> None:
 
 
 def _select_tools(args: argparse.Namespace, catalog: Catalog) -> list:
+    selectors = sum(
+        (
+            bool(args.names),
+            bool(getattr(args, "category", None)),
+            bool(getattr(args, "profile", None)),
+        )
+    )
+    if selectors > 1:
+        raise CatalogError("Choose package names, --category, or --profile; do not combine them")
     if args.names:
         return resolve_names(catalog, args.names)
     if getattr(args, "category", None):
@@ -215,7 +235,15 @@ def _select_tools(args: argparse.Namespace, catalog: Catalog) -> list:
 def _run_install(args: argparse.Namespace, catalog: Catalog, backend: PacmanBackend) -> int:
     tools = _select_tools(args, catalog)
     names = [tool.name for tool in tools]
-    command = ["sudo", "pacman", "-S", "--needed", *(["--noconfirm"] if args.yes else []), *names]
+    command = [
+        "sudo",
+        "pacman",
+        "-S",
+        "--needed",
+        *(["--noconfirm"] if args.yes else []),
+        "--",
+        *names,
+    ]
     if args.dry_run:
         if getattr(args, "setup_repo", False) and not backend.repo_enabled:
             print("Would enable the official BlackArch repository first.")
@@ -226,7 +254,7 @@ def _run_install(args: argparse.Namespace, catalog: Catalog, backend: PacmanBack
     if not backend.repo_enabled:
         if getattr(args, "setup_repo", False):
             setup_args = argparse.Namespace(
-                allow_changed_strap=False,
+                strap_sha256=None,
                 dry_run=False,
                 yes=args.yes,
             )
@@ -269,13 +297,19 @@ def _repo_enable(args: argparse.Namespace, backend: PacmanBackend) -> int:
         print("The [blackarch] repository is already configured.")
         return 0
     backend.require_supported()
-    script, digest, sha1 = backend.download_strap(
-        allow_changed=args.allow_changed_strap
+    script, digest, sha1, checksum_matched = backend.download_strap(
+        reviewed_sha256=args.strap_sha256
     )
     try:
         print(f"Downloaded official script: {script}")
         print(f"SHA-256: {digest}")
-        print(f"Official SHA-1 check: {sha1} (matched)")
+        checksum_state = "matched" if checksum_matched else "MISMATCH - exact SHA-256 approved"
+        print(f"Official SHA-1 check: {sha1} ({checksum_state})")
+        if not checksum_matched:
+            print(
+                "WARNING: The downloaded root setup script does not match the "
+                "pinned BlackArch checksum."
+            )
         preview = "\n".join(script.read_text(encoding="utf-8", errors="replace").splitlines()[:12])
         print("\nFirst 12 lines:\n")
         print(preview)
@@ -375,6 +409,8 @@ def run(argv: Sequence[str] | None = None) -> int:
                 print(value)
         return 0
     if args.command == "search":
+        if args.category and args.category not in catalog.categories:
+            raise CatalogError(f"Unknown category: {args.category}")
         tools = catalog.search(" ".join(args.query), category=args.category, limit=args.limit)
         _display_tools(tools, args.json)
         return 0 if tools else 1
@@ -411,8 +447,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             audit = audit_tools(tools, backend, check_executables=args.executables)
         payload = audit.to_dict()
         if args.output:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            atomic_write_json(args.output, payload)
         if args.json:
             emit_json(payload)
         else:
@@ -431,28 +466,31 @@ def run(argv: Sequence[str] | None = None) -> int:
                 ),
             )
             print("\nSummary: " + ", ".join(f"{key}={value}" for key, value in audit.counts.items()))
-        return 0 if not any(
-            state.status in {"missing-from-repo", "installed-files-missing"}
-            for state in audit.states
-        ) else 3
+        return audit.exit_code
     if args.command in {"install", "get", "add"}:
         return _run_install(args, catalog, backend)
     if args.command in {"remove", "rm", "uninstall"}:
-        resolve_names(catalog, args.names)
+        names = validate_package_names(args.names)
         if args.dry_run:
             operation = "-Rns" if args.purge else "-R"
-            print(command_preview(["sudo", "pacman", operation, *args.names]))
+            print(command_preview(["sudo", "pacman", operation, "--", *names]))
             return 0
+        backend.require_supported()
+        installed = backend.installed_packages()
+        missing = [name for name in names if name not in installed]
+        if missing:
+            raise BackendError("Package is not installed: " + ", ".join(missing))
         if not args.yes and not _confirm(f"Remove {len(args.names)} package(s)?"):
             print("Cancelled.")
             return 1
-        return backend.remove(args.names, purge=args.purge).returncode
+        return backend.remove(names, purge=args.purge).returncode
     if args.command == "upgrade":
         if args.names:
             resolve_names(catalog, args.names)
         if args.dry_run:
             operation = "-S" if args.names else "-Syu"
-            print(command_preview(["sudo", "pacman", operation, *args.names]))
+            operands = ["--", *args.names] if args.names else []
+            print(command_preview(["sudo", "pacman", operation, *operands]))
             return 0
         if not args.yes and not _confirm(
             "Upgrade selected packages?" if args.names else "Run a full system upgrade?"
@@ -489,17 +527,17 @@ def run(argv: Sequence[str] | None = None) -> int:
         install_args.setup_repo = False
         return _run_install(install_args, catalog, backend)
     if args.command == "export":
-        args.path.parent.mkdir(parents=True, exist_ok=True)
         if args.format == "json":
             catalog.write(args.path)
         else:
-            with args.path.open("w", newline="", encoding="utf-8") as handle:
-                writer = csv.DictWriter(
-                    handle,
-                    fieldnames=["name", "version", "description", "category", "website"],
-                )
-                writer.writeheader()
-                writer.writerows(tool.to_dict() for tool in catalog.tools)
+            handle = io.StringIO(newline="")
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=["name", "version", "description", "category", "website"],
+            )
+            writer.writeheader()
+            writer.writerows(tool.to_dict() for tool in catalog.tools)
+            atomic_write_text(args.path, handle.getvalue())
         print(f"Exported {len(catalog.tools)} tools to {args.path}")
         return 0
     if args.command == "completion":
@@ -517,3 +555,11 @@ def main() -> None:
     except (BackendError, CatalogError, ProfileError, RepositoryError) as exc:
         error(str(exc))
         raise SystemExit(2) from exc
+    except KeyboardInterrupt:
+        error("cancelled")
+        raise SystemExit(130) from None
+    except BrokenPipeError:
+        try:
+            sys.stdout.close()
+        finally:
+            raise SystemExit(0) from None
