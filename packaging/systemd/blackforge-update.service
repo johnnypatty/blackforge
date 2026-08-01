@@ -1,7 +1,0 @@
-[Unit]
-Description=Check BlackForge catalog updates
-Documentation=https://johnnypatty.github.io/blackforge/wiki/
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/blackforge updates check

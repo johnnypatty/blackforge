@@ -1,0 +1,10 @@
+{
+  "catalog_tools": 2861,
+  "maintenance": {
+    "current": 780,
+    "stale": 680,
+    "unknown": 1258,
+    "archived": 143
+  },
+  "community_presets": 3
+}
