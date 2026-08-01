@@ -99,7 +99,9 @@ class ArchTool:
         validate_package_name(self.name)
         validate_repository(self.repository)
         if self.architecture not in SUPPORTED_ARCHITECTURES:
-            raise SourceError(f"Unsupported package architecture: {self.architecture!r}")
+            raise SourceError(
+                f"Unsupported package architecture: {self.architecture!r}"
+            )
         if not self.version.strip():
             raise SourceError(f"Package {self.name!r} has no version")
         if not self.description.strip():
@@ -187,7 +189,10 @@ class ArchToolCatalog:
         ids = [tool.id for tool in self.tools]
         if len(ids) != len(set(ids)):
             raise SourceError("Curated Arch catalog contains duplicate package IDs")
-        if tuple(sorted(self.tools, key=lambda tool: tool.name.casefold())) != self.tools:
+        if (
+            tuple(sorted(self.tools, key=lambda tool: tool.name.casefold()))
+            != self.tools
+        ):
             raise SourceError("Curated Arch catalog must be sorted by package name")
         _validate_https_url(self.source, field="catalog source")
 
@@ -201,10 +206,7 @@ class ArchToolCatalog:
         for tool in self.tools:
             for category in tool.categories:
                 result.setdefault(category, []).append(tool)
-        return {
-            category: tuple(tools)
-            for category, tools in sorted(result.items())
-        }
+        return {category: tuple(tools) for category, tools in sorted(result.items())}
 
     def search(
         self,

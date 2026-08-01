@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blackforge-cli"
-version = "0.3.0"
+version = "0.4.0"
 description = "An unofficial, safety-minded Arch Linux manager for BlackArch and curated security tools"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,8 +22,9 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/johnnypatty/blackforge"
+Homepage = "https://johnnypatty.github.io/blackforge/"
 Repository = "https://github.com/johnnypatty/blackforge"
+Documentation = "https://johnnypatty.github.io/blackforge/wiki/"
 BlackArch = "https://www.blackarch.org/"
 
 [project.scripts]

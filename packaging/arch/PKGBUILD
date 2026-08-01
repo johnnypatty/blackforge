@@ -2,7 +2,7 @@
 
 pkgname=blackforge
 _python_name=blackforge_cli
-pkgver=0.3.0
+pkgver=0.4.0
 pkgrel=1
 pkgdesc='Safety-minded manager for BlackArch and curated Arch security tools'
 arch=('any')
@@ -10,9 +10,13 @@ url='https://github.com/johnnypatty/blackforge'
 license=('MIT')
 depends=('python' 'pacman')
 makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
-optdepends=('sudo: privilege escalation when BlackForge is run by a non-root user')
-source=("${_python_name}-${pkgver}-final.tar.gz")
-sha256sums=('a85eb10de190b99f41f90dfdddef1b99f7420e83bbbe9583692c317420a57c56')
+optdepends=(
+  'sudo: privilege escalation when BlackForge is run by a non-root user'
+  'arch-audit: official Arch security advisory checks'
+  'snapper: optional Btrfs transaction snapshots'
+)
+source=("${_python_name}-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/${_python_name}-${pkgver}.tar.gz")
+sha256sums=('a96e637b5aadb2b26b48ebc3dc6fe3589217801801f0d705d6b0da504bbbea38')
 
 build() {
   cd "${srcdir}/${_python_name}-${pkgver}"
@@ -26,6 +30,11 @@ package() {
   cd "${srcdir}/${_python_name}-${pkgver}"
   python -m installer --destdir="${pkgdir}" dist/*.whl
   install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm644 docs/blackforge.1 "${pkgdir}/usr/share/man/man1/blackforge.1"
+  install -Dm644 packaging/systemd/blackforge-update.service \
+    "${pkgdir}/usr/lib/systemd/user/blackforge-update.service"
+  install -Dm644 packaging/systemd/blackforge-update.timer \
+    "${pkgdir}/usr/lib/systemd/user/blackforge-update.timer"
   install -Dm644 "${srcdir}/blackforge.bash" \
     "${pkgdir}/usr/share/bash-completion/completions/blackforge"
   install -Dm644 "${srcdir}/_blackforge" \

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "network-observation",
+  "name": "Network observation starter",
+  "description": "Discovery and packet-inspection essentials for networks you own or administer.",
+  "authors": ["@johnnypatty"],
+  "tags": ["network", "defensive"],
+  "packages": ["arch:extra/nmap", "arch:extra/tcpdump", "arch:extra/wireshark-cli", "blackarch:amass"],
+  "license": "CC0-1.0",
+  "reviewed": true
+}

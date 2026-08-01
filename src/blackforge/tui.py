@@ -43,8 +43,7 @@ class TuiState:
             tool
             for tool in self.tools
             if all(
-                term
-                in f"{tool.name} {tool.description} {_category(tool)}".casefold()
+                term in f"{tool.name} {tool.description} {_category(tool)}".casefold()
                 for term in terms
             )
         ]
@@ -75,7 +74,9 @@ def run_tui(tools: Iterable[TuiTool]) -> list[str]:
     try:
         import curses
     except ImportError as exc:
-        raise TuiError("The full-screen interface requires Python curses on Linux") from exc
+        raise TuiError(
+            "The full-screen interface requires Python curses on Linux"
+        ) from exc
     state = TuiState(list(tools))
 
     def application(screen) -> list[str] | None:

@@ -1,0 +1,69 @@
+name: Community preset
+description: Propose a safe, data-only package collection for public review
+title: "preset: "
+labels: ["community-preset"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing a collection. Presets may contain only source-qualified package names—no scripts, commands, hooks, credentials, targets, or remote installers.
+  - type: input
+    id: preset_id
+    attributes:
+      label: Preset ID
+      description: Lowercase letters, numbers, and hyphens only.
+      placeholder: defensive-web-audit
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Display name
+      placeholder: Defensive web audit
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Purpose
+      description: Explain the authorized, legitimate workflow this collection supports.
+    validations:
+      required: true
+  - type: textarea
+    id: packages
+    attributes:
+      label: Source-qualified packages
+      description: One per line. Use blackarch:NAME or arch:REPOSITORY/NAME.
+      placeholder: |
+        blackarch:amass
+        blackarch:httpx
+        arch:extra/nmap
+    validations:
+      required: true
+  - type: input
+    id: tags
+    attributes:
+      label: Tags
+      placeholder: web, defensive
+    validations:
+      required: true
+  - type: dropdown
+    id: license
+    attributes:
+      label: Preset data license
+      options:
+        - CC0-1.0
+        - MIT
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Safety confirmations
+      options:
+        - label: This preset contains no command, script, hook, URL, credential, or target data.
+          required: true
+        - label: Every package is intended for systems the user owns or is authorized to assess.
+          required: true
+        - label: I understand maintainers will validate packages and may decline unsafe or unclear collections.
+          required: true

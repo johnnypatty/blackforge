@@ -1,2 +1,1 @@
 """Bundled BlackArch catalog snapshot."""
-

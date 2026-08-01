@@ -61,8 +61,7 @@ def read_profile(path: Path) -> tuple[str, list[str]]:
         or not profile_name.strip()
         or len(profile_name) > 256
         or any(
-            ord(character) < 32 or ord(character) == 127
-            for character in profile_name
+            ord(character) < 32 or ord(character) == 127 for character in profile_name
         )
     ):
         raise ProfileError("Profile name must be a short non-empty string")

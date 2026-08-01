@@ -1,0 +1,94 @@
+.TH BLACKFORGE 1 "August 2026" "BlackForge 0.4.0" "User Commands"
+.SH NAME
+blackforge \- safety-minded Arch Linux manager for BlackArch and curated security tools
+.SH SYNOPSIS
+.B blackforge
+.RI [ GLOBAL\ OPTIONS ]
+.I COMMAND
+.RI [ COMMAND\ OPTIONS ]
+.SH DESCRIPTION
+BlackForge searches and inspects the BlackArch website catalog and a reviewed
+set of official Arch packages. Package changes are delegated to pacman.
+Mutating commands show a plan and require confirmation unless explicitly told
+otherwise.
+.PP
+BlackForge is unofficial and is not affiliated with BlackArch or Arch Linux.
+Security tools must only be used on systems the user owns or is authorized to
+test.
+.SH GLOBAL OPTIONS
+.TP
+.BR --json
+Emit machine-readable JSON where supported.
+.TP
+.BR --dry-run
+Preview without changing packages or files.
+.TP
+.BR -y , " --yes"
+Skip BlackForge confirmation and pass --noconfirm to pacman operations.
+.TP
+.BR --catalog " PATH"
+Use a specific validated BlackArch catalog.
+.SH CORE COMMANDS
+.TP
+.BR search " QUERY"
+Search tool names, descriptions, and categories.
+.TP
+.BR show " PACKAGE"
+Show source, repository, installation, and maintenance details.
+.TP
+.BR plan " install|remove|upgrade"
+Preview the exact pacman transaction and available metadata.
+.TP
+.BR install " [--snapshot] PACKAGE..."
+Install validated BlackArch or source-qualified official Arch packages.
+.TP
+.BR remove " PACKAGE..."
+Conservatively remove installed packages.
+.TP
+.BR audit
+Report outdated, vulnerable, unavailable, and keyring states. Official Arch
+advisories are included when arch-audit is installed.
+.TP
+.BR lock " create|compare|sbom"
+Create exact version locks, compare machine drift, or export CycloneDX/SPDX.
+.TP
+.BR snapshot " status|create|rollback-plan"
+Detect Btrfs/Snapper, create an explicit snapshot, or locate exact cached
+package versions for a reviewed rollback command.
+.TP
+.BR community " list|show|validate|apply"
+Work with release-reviewed, data-only community collections.
+.TP
+.BR aur " --enable-aur search|info"
+Query official AUR RPC metadata. No PKGBUILD is downloaded or executed.
+.TP
+.BR dashboard " build REPORT.html"
+Create a portable maintenance and availability report.
+.TP
+.BR integration " systemd|packagekit"
+Generate an optional user timer or PackageKit-style status JSON.
+.SH HELP
+Run
+.B blackforge help COMMAND
+for complete command-specific options and examples. Run
+.B blackforge help --all
+for every parser, or
+.B blackforge help --lang tr
+for the Turkish quick guide.
+.SH FILES
+.TP
+.I ~/.local/share/blackforge
+Default user installation.
+.TP
+.I ~/.local/state/blackforge
+Transaction, update, and dashboard history.
+.TP
+.I ~/.cache/blackforge
+Refreshed catalog cache.
+.SH SEE ALSO
+.BR pacman (8),
+.BR makepkg (8),
+.BR snapper (8),
+.BR arch-audit (1)
+.PP
+Project wiki: https://johnnypatty.github.io/blackforge/wiki/

@@ -78,9 +78,7 @@ def maintenance_group(status: MaintenanceStatus | str) -> str:
     except ValueError as exc:
         raise MaintenanceError(f"Unknown maintenance status: {status!r}") from exc
     return (
-        CURRENT_GROUP
-        if parsed is MaintenanceStatus.CURRENT
-        else NEEDS_ATTENTION_GROUP
+        CURRENT_GROUP if parsed is MaintenanceStatus.CURRENT else NEEDS_ATTENTION_GROUP
     )
 
 
@@ -276,13 +274,9 @@ class MaintenanceSnapshot:
             if not isinstance(tool_id, str) or not tool_id.strip():
                 raise MaintenanceError("Maintenance record has an empty tool ID")
             if tool_id in normalized:
-                raise MaintenanceError(
-                    f"Duplicate maintenance record for {tool_id!r}"
-                )
+                raise MaintenanceError(f"Duplicate maintenance record for {tool_id!r}")
             if not isinstance(evidence, MaintenanceEvidence):
-                raise MaintenanceError(
-                    f"Invalid maintenance evidence for {tool_id!r}"
-                )
+                raise MaintenanceError(f"Invalid maintenance evidence for {tool_id!r}")
             normalized[tool_id] = evidence
         object.__setattr__(
             self,
@@ -357,8 +351,7 @@ class MaintenanceSnapshot:
     ) -> MaintenanceSnapshot:
         if value.get("schema_version") != MAINTENANCE_SCHEMA_VERSION:
             raise MaintenanceError(
-                f"Unsupported maintenance schema: "
-                f"{value.get('schema_version')!r}"
+                f"Unsupported maintenance schema: {value.get('schema_version')!r}"
             )
         generated_at = _parse_date(
             value.get("generated_at"),
@@ -372,9 +365,7 @@ class MaintenanceSnapshot:
             if not isinstance(tool_id, str) or not isinstance(raw_evidence, dict):
                 raise MaintenanceError("Malformed maintenance record")
             if tool_id in records:
-                raise MaintenanceError(
-                    f"Duplicate maintenance record for {tool_id!r}"
-                )
+                raise MaintenanceError(f"Duplicate maintenance record for {tool_id!r}")
             records[tool_id] = MaintenanceEvidence.from_dict(
                 raw_evidence,
                 stale_years=stale_years,

@@ -40,7 +40,9 @@ class Audit:
 
     @property
     def exit_code(self) -> int:
-        return 3 if any(state.status in UNHEALTHY_STATUSES for state in self.states) else 0
+        return (
+            3 if any(state.status in UNHEALTHY_STATUSES for state in self.states) else 0
+        )
 
 
 def audit_tools(
@@ -80,7 +82,9 @@ def audit_tools(
             )
             for tool in selected
         ]
-        return Audit(states=states, environment="arch", note="Enable the repository first.")
+        return Audit(
+            states=states, environment="arch", note="Enable the repository first."
+        )
 
     available = backend.available_packages()
     installed = backend.installed_packages()
@@ -93,7 +97,9 @@ def audit_tools(
         note = ""
         if repository_version is None:
             status = "missing-from-repo"
-            note = "listed on the website but absent from the synced repository database"
+            note = (
+                "listed on the website but absent from the synced repository database"
+            )
         elif installed_version is None:
             status = "available"
         elif check_executables:
@@ -114,7 +120,8 @@ def audit_tools(
             repository_version
             and tool.version
             and package_base_version(repository_version) != tool.version
-            and status in {"available", "installed", "installed-files-ok", "installed-no-cli"}
+            and status
+            in {"available", "installed", "installed-files-ok", "installed-no-cli"}
         ):
             note = (
                 f"{note}; website version {tool.version} differs from repository "
@@ -154,7 +161,9 @@ def audit_repository_snapshot(
                 )
             )
             continue
-        note = "live repository database confirms the package; install/runtime not tested"
+        note = (
+            "live repository database confirms the package; install/runtime not tested"
+        )
         base_version = package_base_version(repository_version)
         if tool.version and base_version != tool.version:
             note += (

@@ -4,28 +4,15 @@
 from __future__ import annotations
 
 import argparse
-import configparser
 import hashlib
 import os
 import re
 import sys
 import tarfile
-from email.parser import BytesParser
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_MODULE = "blackforge"
-GENERATED_SDIST_FILES = frozenset(
-    {
-        "PKG-INFO",
-        "setup.cfg",
-        "src/blackforge_cli.egg-info/PKG-INFO",
-        "src/blackforge_cli.egg-info/SOURCES.txt",
-        "src/blackforge_cli.egg-info/dependency_links.txt",
-        "src/blackforge_cli.egg-info/entry_points.txt",
-        "src/blackforge_cli.egg-info/top_level.txt",
-    }
-)
 
 
 def _arguments(argv: list[str] | None) -> argparse.Namespace:
@@ -39,6 +26,11 @@ def _arguments(argv: list[str] | None) -> argparse.Namespace:
         "--tag",
         default=github_tag,
         help="release tag to bind to the package version (for example v0.3.0)",
+    )
+    parser.add_argument(
+        "--archive",
+        type=Path,
+        help="verify the reproducible source archive and its PKGBUILD checksum",
     )
     return parser.parse_args(argv)
 
@@ -76,37 +68,16 @@ def _release_source_files() -> dict[str, Path]:
         ROOT / "LICENSE",
         ROOT / "README.md",
         ROOT / "pyproject.toml",
+        ROOT / "docs" / "blackforge.1",
+        ROOT / "packaging" / "systemd" / "blackforge-update.service",
+        ROOT / "packaging" / "systemd" / "blackforge-update.timer",
         *sorted((ROOT / "src" / PACKAGE_MODULE).rglob("*.py")),
         *sorted((ROOT / "src" / PACKAGE_MODULE / "data").glob("*.json")),
-        *sorted((ROOT / "tests").glob("test_*.py")),
     ]
     missing = [str(path.relative_to(ROOT)) for path in paths if not path.is_file()]
     if missing:
         raise SystemExit(f"Release source file is missing: {missing[0]}")
-    return {
-        path.relative_to(ROOT).as_posix(): path
-        for path in paths
-    }
-
-
-def _expected_archive_members(
-    archive_prefix: str,
-    source_files: dict[str, Path],
-) -> set[str]:
-    files = set(source_files) | set(GENERATED_SDIST_FILES)
-    directories = {""}
-    for filename in files:
-        parent = PurePosixPath(filename).parent
-        while str(parent) != ".":
-            directories.add(parent.as_posix())
-            parent = parent.parent
-    return {
-        archive_prefix if not directory else f"{archive_prefix}/{directory}"
-        for directory in directories
-    } | {
-        f"{archive_prefix}/{filename}"
-        for filename in files
-    }
+    return {path.relative_to(ROOT).as_posix(): path for path in paths}
 
 
 def _member_bytes(
@@ -120,106 +91,12 @@ def _member_bytes(
     return member.read()
 
 
-def _validate_generated_metadata(
-    source_archive: tarfile.TarFile,
-    file_members: dict[str, tarfile.TarInfo],
-    *,
-    project_name: str,
-    version: str,
-) -> None:
-    top_metadata = _member_bytes(source_archive, file_members, "PKG-INFO")
-    egg_metadata = _member_bytes(
-        source_archive,
-        file_members,
-        "src/blackforge_cli.egg-info/PKG-INFO",
-    )
-    if top_metadata != egg_metadata:
-        raise SystemExit("Native Arch source archive has inconsistent PKG-INFO files")
-    metadata = BytesParser().parsebytes(top_metadata)
-    if metadata.get("Name") != project_name or metadata.get("Version") != version:
-        raise SystemExit(
-            "Native Arch source archive has the wrong distribution identity"
-        )
-
-    setup = configparser.ConfigParser(interpolation=None)
-    try:
-        setup.read_string(
-            _member_bytes(source_archive, file_members, "setup.cfg").decode("utf-8")
-        )
-    except (UnicodeDecodeError, configparser.Error) as exc:
-        raise SystemExit(f"Native Arch setup.cfg is malformed: {exc}") from exc
-    if setup.sections() != ["egg_info"] or dict(setup["egg_info"]) != {
-        "tag_build": "",
-        "tag_date": "0",
-    }:
-        raise SystemExit("Native Arch setup.cfg contains unexpected build settings")
-
-    entry_points = configparser.ConfigParser(interpolation=None)
-    try:
-        entry_points.read_string(
-            _member_bytes(
-                source_archive,
-                file_members,
-                "src/blackforge_cli.egg-info/entry_points.txt",
-            ).decode("utf-8")
-        )
-    except (UnicodeDecodeError, configparser.Error) as exc:
-        raise SystemExit(f"Native Arch entry points are malformed: {exc}") from exc
-    if entry_points.sections() != ["console_scripts"] or dict(
-        entry_points["console_scripts"]
-    ) != {"blackforge": "blackforge.cli:main"}:
-        raise SystemExit("Native Arch source archive has unexpected entry points")
-
-    dependency_links = _member_bytes(
-        source_archive,
-        file_members,
-        "src/blackforge_cli.egg-info/dependency_links.txt",
-    )
-    if dependency_links.strip():
-        raise SystemExit("Native Arch source archive has unexpected dependency links")
-    top_level = _member_bytes(
-        source_archive,
-        file_members,
-        "src/blackforge_cli.egg-info/top_level.txt",
-    )
-    if top_level.decode("utf-8").splitlines() != [PACKAGE_MODULE]:
-        raise SystemExit("Native Arch source archive has the wrong import package")
-
-    sources_text = _member_bytes(
-        source_archive,
-        file_members,
-        "src/blackforge_cli.egg-info/SOURCES.txt",
-    )
-    try:
-        sources = sources_text.decode("utf-8").splitlines()
-    except UnicodeDecodeError as exc:
-        raise SystemExit("Native Arch SOURCES.txt is not valid UTF-8") from exc
-    expected_sources = (
-        set(_release_source_files())
-        | {
-            value
-            for value in GENERATED_SDIST_FILES
-            if value.startswith("src/blackforge_cli.egg-info/")
-        }
-    )
-    if len(sources) != len(set(sources)) or set(sources) != expected_sources:
-        missing = sorted(expected_sources - set(sources))
-        extra = sorted(set(sources) - expected_sources)
-        raise SystemExit(
-            "Native Arch SOURCES.txt does not describe the exact release: "
-            f"missing={missing[:5]!r}, extra={extra[:5]!r}"
-        )
-
-
 def _validate_archive(
     archive: Path,
     *,
     archive_prefix: str,
-    project_name: str,
-    version: str,
 ) -> None:
     source_files = _release_source_files()
-    expected_members = _expected_archive_members(archive_prefix, source_files)
     try:
         with tarfile.open(archive, mode="r:gz") as source_archive:
             members = source_archive.getmembers()
@@ -232,38 +109,51 @@ def _validate_archive(
                     path.is_absolute()
                     or ".." in path.parts
                     or not (member.isfile() or member.isdir())
+                    or not (
+                        name == archive_prefix or name.startswith(f"{archive_prefix}/")
+                    )
                 ):
                     raise SystemExit(
                         f"Native Arch source archive has an unsafe member: {name}"
                     )
-            actual_members = set(names)
-            if actual_members != expected_members:
-                missing = sorted(expected_members - actual_members)
-                extra = sorted(actual_members - expected_members)
-                raise SystemExit(
-                    "Native Arch source archive member set is stale: "
-                    f"missing={missing[:5]!r}, extra={extra[:5]!r}"
-                )
             file_members = {
                 name.removeprefix(f"{archive_prefix}/"): member
                 for member, name in zip(members, names, strict=True)
                 if member.isfile()
             }
+            missing = sorted(set(source_files) - set(file_members))
+            if missing:
+                raise SystemExit(f"Native Arch source archive is missing {missing[0]}")
             for relative, source_path in source_files.items():
-                if _member_bytes(
+                archive_bytes = _member_bytes(
                     source_archive,
                     file_members,
                     relative,
-                ) != source_path.read_bytes():
+                )
+                source_bytes = source_path.read_bytes()
+                if archive_bytes.replace(b"\r\n", b"\n") != source_bytes.replace(
+                    b"\r\n", b"\n"
+                ):
                     raise SystemExit(
                         f"Native Arch source archive is stale for {relative}"
                     )
-            _validate_generated_metadata(
-                source_archive,
-                file_members,
-                project_name=project_name,
-                version=version,
+            excluded_roots = {
+                ".github",
+                "community",
+                "reports",
+                "scripts",
+                "site",
+                "tests",
+            }
+            leaked = sorted(
+                name
+                for name in file_members
+                if PurePosixPath(name).parts[0] in excluded_roots
             )
+            if leaked:
+                raise SystemExit(
+                    f"Native Arch source archive includes export-ignored {leaked[0]}"
+                )
     except tarfile.TarError as exc:
         raise SystemExit(f"Native Arch source archive is invalid: {exc}") from exc
 
@@ -288,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from blackforge import __version__
     from blackforge.catalog import bundled_catalog
+    from blackforge.community import bundled_community_presets
     from blackforge.maintenance import load_bundled_maintenance
     from blackforge.presets import bundled_presets
     from blackforge.sources import bundled_arch_catalog
@@ -295,9 +186,7 @@ def main(argv: list[str] | None = None) -> int:
     project_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     project_version = _project_field(project_text, "version")
     project_name = _project_field(project_text, "name")
-    pkgbuild = (ROOT / "packaging" / "arch" / "PKGBUILD").read_text(
-        encoding="utf-8"
-    )
+    pkgbuild = (ROOT / "packaging" / "arch" / "PKGBUILD").read_text(encoding="utf-8")
     pkgbuild_version = _shell_scalar(pkgbuild, "pkgver")
     python_name = _shell_scalar(pkgbuild, "_python_name")
     versions = {
@@ -318,38 +207,35 @@ def main(argv: list[str] | None = None) -> int:
     _validate_tag(args.tag, __version__)
 
     source_value = _source_value(pkgbuild)
-    expanded_source = (
-        source_value.replace("${_python_name}", python_name)
-        .replace("${pkgver}", __version__)
+    expanded_source = source_value.replace("${_python_name}", python_name).replace(
+        "${pkgver}", __version__
     )
-    archive_name = f"{python_name}-{__version__}-final.tar.gz"
-    if expanded_source != archive_name:
+    archive_name = f"{python_name}-{__version__}.tar.gz"
+    expected_source = (
+        f"{archive_name}::${{url}}/releases/download/v{__version__}/{archive_name}"
+    )
+    if expanded_source != expected_source:
         raise SystemExit(
             "PKGBUILD source does not identify the native release archive: "
-            f"{expanded_source!r} != {archive_name!r}"
+            f"{expanded_source!r} != {expected_source!r}"
         )
     checksum_match = re.search(
         r"(?m)^sha256sums=\('([0-9a-f]{64})'\)$",
         pkgbuild,
     )
-    archive = ROOT / "packaging" / "arch" / archive_name
-    if (
-        checksum_match is None
-        or not archive.is_file()
-        or archive.is_symlink()
-    ):
-        raise SystemExit("The native Arch source archive/checksum is missing")
-    actual_checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
-    if actual_checksum != checksum_match.group(1):
-        raise SystemExit(
-            f"PKGBUILD archive checksum mismatch: {actual_checksum}"
+    if checksum_match is None:
+        raise SystemExit("The native Arch source archive checksum is missing")
+    if args.archive is not None:
+        archive = args.archive.resolve()
+        if not archive.is_file() or archive.is_symlink():
+            raise SystemExit(f"Release source archive is missing: {archive}")
+        actual_checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if actual_checksum != checksum_match.group(1):
+            raise SystemExit(f"PKGBUILD archive checksum mismatch: {actual_checksum}")
+        _validate_archive(
+            archive,
+            archive_prefix=f"{python_name}-{__version__}",
         )
-    _validate_archive(
-        archive,
-        archive_prefix=f"{python_name}-{__version__}",
-        project_name=project_name,
-        version=__version__,
-    )
 
     catalog = bundled_catalog()
     maintenance = load_bundled_maintenance(required=True)
@@ -365,10 +251,12 @@ def main(argv: list[str] | None = None) -> int:
 
     arch = bundled_arch_catalog()
     presets = bundled_presets()
+    community = bundled_community_presets()
     print(
         f"Release {__version__}: {len(catalog.tools)} BlackArch tools, "
         f"{len(maintenance.records)} maintenance records, "
-        f"{len(arch.tools)} curated Arch tools, {len(presets)} collections"
+        f"{len(arch.tools)} curated Arch tools, {len(presets)} collections, "
+        f"{len(community)} reviewed community presets"
     )
     return 0
 

@@ -128,7 +128,9 @@ def check_latest(url: str = LATEST_RELEASE_URL) -> ReleaseInfo:
             ).decode("utf-8")
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SelfUpdateError(f"GitHub returned invalid release metadata: {exc}") from exc
+        raise SelfUpdateError(
+            f"GitHub returned invalid release metadata: {exc}"
+        ) from exc
     if not isinstance(value, dict):
         raise SelfUpdateError("GitHub returned malformed release metadata")
     tag = value.get("tag_name")
@@ -151,9 +153,7 @@ def check_latest(url: str = LATEST_RELEASE_URL) -> ReleaseInfo:
                     raise SelfUpdateError(f"Release asset {name!r} has an invalid size")
                 parsed_size = size
                 if parsed_size < 0:
-                    raise SelfUpdateError(
-                        f"Release asset {name!r} has an invalid size"
-                    )
+                    raise SelfUpdateError(f"Release asset {name!r} has an invalid size")
                 parsed_asset_url = urllib.parse.urlsplit(asset_url)
                 if (
                     parsed_asset_url.scheme != "https"
@@ -194,7 +194,11 @@ def _validate_release_asset(asset: ReleaseAsset) -> None:
         raise SelfUpdateError(f"Release has an unsafe asset name: {asset.name!r}")
     if Path(asset.name).name != asset.name or "/" in asset.name or "\\" in asset.name:
         raise SelfUpdateError(f"Release asset name is not a basename: {asset.name!r}")
-    if isinstance(asset.size, bool) or not isinstance(asset.size, int) or asset.size < 0:
+    if (
+        isinstance(asset.size, bool)
+        or not isinstance(asset.size, int)
+        or asset.size < 0
+    ):
         raise SelfUpdateError(f"Release asset {asset.name!r} has an invalid size")
 
 
@@ -227,14 +231,12 @@ def apply_release(release: ReleaseInfo) -> str:
             "Use pacman/makepkg or git for this installation."
         ) from exc
     if marker_value != "blackforge-user-install-v1" or not interpreter.is_file():
-        raise SelfUpdateError("The BlackForge user installation is incomplete or untrusted")
+        raise SelfUpdateError(
+            "The BlackForge user installation is incomplete or untrusted"
+        )
     expected_wheel_name = _expected_wheel_name(release.version)
     wheel = next(
-        (
-            asset
-            for asset in release.assets
-            if asset.name == expected_wheel_name
-        ),
+        (asset for asset in release.assets if asset.name == expected_wheel_name),
         None,
     )
     checksums = next(
@@ -342,5 +344,7 @@ def _checksum_for(content: str, filename: str) -> str:
     if not matches:
         raise SelfUpdateError(f"SHA256SUMS has no valid entry for {filename}")
     if len(matches) != 1:
-        raise SelfUpdateError(f"SHA256SUMS has ambiguous duplicate entries for {filename}")
+        raise SelfUpdateError(
+            f"SHA256SUMS has ambiguous duplicate entries for {filename}"
+        )
     return matches[0]

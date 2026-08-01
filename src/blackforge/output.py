@@ -24,7 +24,11 @@ def table(headers: list[str], rows: Iterable[Iterable[object]]) -> None:
     if widths and sum(widths) + 3 * (len(widths) - 1) > terminal_width:
         overflow = sum(widths) + 3 * (len(widths) - 1) - terminal_width
         description_index = next(
-            (index for index, name in enumerate(headers) if name.lower() in {"description", "note"}),
+            (
+                index
+                for index, name in enumerate(headers)
+                if name.lower() in {"description", "note"}
+            ),
             len(widths) - 1,
         )
         widths[description_index] = max(18, widths[description_index] - overflow)
@@ -34,7 +38,9 @@ def table(headers: list[str], rows: Iterable[Iterable[object]]) -> None:
             return value.ljust(width)
         return (value[: max(1, width - 1)] + "…").ljust(width)
 
-    print("   ".join(fit(header, widths[index]) for index, header in enumerate(headers)))
+    print(
+        "   ".join(fit(header, widths[index]) for index, header in enumerate(headers))
+    )
     print("   ".join("-" * width for width in widths))
     for row in values:
         print(

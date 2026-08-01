@@ -23,13 +23,13 @@ def _validated_targets(names: Sequence[str]) -> tuple[str, ...]:
             if value.startswith("arch:"):
                 target = resolve_arch_tool(value).package_target
             elif value.startswith("blackarch:"):
-                target = validate_package_names(
-                    [value.removeprefix("blackarch:")]
-                )[0]
+                target = validate_package_names([value.removeprefix("blackarch:")])[0]
             elif "/" in value:
                 repository, name = parse_arch_reference(value)
                 if repository is None:
-                    raise PlannerError(f"Repository-qualified package expected: {value}")
+                    raise PlannerError(
+                        f"Repository-qualified package expected: {value}"
+                    )
                 target = f"{repository}/{name}"
             else:
                 target = validate_package_names([value])[0]
@@ -390,15 +390,15 @@ def _make_plan(
     package_conflicts = (
         conflict for package in metadata.packages for conflict in package.conflicts
     )
-    dependencies = tuple(
-        dict.fromkeys((*metadata.dependencies, *package_dependencies))
-    )
+    dependencies = tuple(dict.fromkeys((*metadata.dependencies, *package_dependencies)))
     conflicts = tuple(dict.fromkeys((*metadata.conflicts, *package_conflicts)))
 
     download_size = metadata.download_size_bytes
     if download_size is None:
-        download_size = 0 if operation == "remove" else _known_total(
-            metadata.packages, "download_size_bytes"
+        download_size = (
+            0
+            if operation == "remove"
+            else _known_total(metadata.packages, "download_size_bytes")
         )
     installed_size = metadata.installed_size_bytes
     if installed_size is None:

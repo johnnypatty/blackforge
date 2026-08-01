@@ -60,6 +60,8 @@ from official `core`, `extra`, and `multilib`; it is not an AUR interface.
 - [`doctor`](#blackforge-doctor)
 - [`status` / `check`](#blackforge-status)
 - [`maintenance`](#blackforge-maintenance)
+- [`audit`](#blackforge-audit)
+- [`aur`](#blackforge-aur)
 
 ### Package and repository operations
 
@@ -76,6 +78,9 @@ from official `core`, `extra`, and `multilib`; it is not an AUR interface.
 - [`profile`](#blackforge-profile)
 - [`env`](#blackforge-env)
 - [`collection`](#blackforge-collection)
+- [`community`](#blackforge-community)
+- [`lock`](#blackforge-lock)
+- [`snapshot`](#blackforge-snapshot)
 - [`history`](#blackforge-history)
 - [`resume`](#blackforge-resume)
 
@@ -88,6 +93,8 @@ from official `core`, `extra`, and `multilib`; it is not an AUR interface.
 - [`completion`](#blackforge-completion)
 - [`interactive`](#blackforge-interactive)
 - [`tui`](#blackforge-tui)
+- [`dashboard`](#blackforge-dashboard)
+- [`integration`](#blackforge-integration)
 
 ## `blackforge help`
 
@@ -96,12 +103,14 @@ blackforge help
 blackforge help COMMAND
 blackforge help COMMAND SUBCOMMAND
 blackforge help --all
+blackforge help --lang tr
 ```
 
 | Argument/option | Meaning |
 | --- | --- |
 | `COMMAND [SUBCOMMAND ...]` | Print help for that exact parser path |
 | `--all` | Print root help followed by every canonical command and subcommand |
+| `--lang en\|tr` | Show the English parser help or Turkish quick guide |
 
 Examples:
 
@@ -325,9 +334,9 @@ No catalog program is launched.
 ## `blackforge install`
 
 ```text
-blackforge install PACKAGE... [--retries N] [--setup-repo]
-blackforge install --category CATEGORY [--retries N] [--setup-repo]
-blackforge install --profile PATH [--retries N] [--setup-repo]
+blackforge install PACKAGE... [--retries N] [--setup-repo] [--snapshot]
+blackforge install --category CATEGORY [--retries N] [--setup-repo] [--snapshot]
+blackforge install --profile PATH [--retries N] [--setup-repo] [--snapshot]
 ```
 
 Exactly one selector may be used: package names, `--category`, or `--profile`.
@@ -340,6 +349,7 @@ for confirmation, and delegates installation to pacman.
 | `--profile PATH` | — | Install package references from a saved profile |
 | `--retries N` | `2` | Automatically retry recognized network/download failures at most N times; accepted range is 0–9 |
 | `--setup-repo` | Off | Enable BlackArch first when a selected BlackArch package needs it |
+| `--snapshot` | Off | Require and create a configured Snapper `root` snapshot immediately before pacman |
 
 Examples:
 
@@ -379,7 +389,7 @@ Aliases: `rm`, `uninstall`.
 ## `blackforge upgrade`
 
 ```text
-blackforge upgrade [PACKAGE...]
+blackforge upgrade [--snapshot] [PACKAGE...]
 ```
 
 - With no names, performs a full `pacman -Syu`.
@@ -387,6 +397,8 @@ blackforge upgrade [PACKAGE...]
   `pacman -S --needed`.
 
 The no-name form is the safe Arch full-system upgrade path.
+`--snapshot` creates a configured Snapper `root` snapshot after confirmation
+and immediately before pacman runs.
 
 ```bash
 blackforge --dry-run upgrade
@@ -494,7 +506,7 @@ promised.
 ```text
 blackforge collection list
 blackforge collection show NAME
-blackforge collection apply NAME [--apply]
+blackforge collection apply NAME [--apply] [--snapshot]
 ```
 
 Built-in collection IDs:
@@ -509,7 +521,8 @@ Built-in collection IDs:
 
 `collection apply` is plan-only by default. `--apply` performs the reviewed
 install after confirmation. Mixed collections require BlackArch to have been
-enabled first.
+enabled first. `--snapshot` creates a configured Snapper snapshot immediately
+before installation.
 
 ## `blackforge maintenance`
 
@@ -544,6 +557,99 @@ a clear validation error. When `--group` is omitted, `--status current`
 automatically selects the current group; the other statuses select attention.
 
 The maintenance label is upstream activity evidence, not runtime validation.
+
+## `blackforge audit`
+
+```text
+blackforge audit [--output REPORT.json]
+```
+
+Runs a read-only Arch host audit and keeps these states separate:
+
+- `outdated`: pacman reports a newer configured-repository version.
+- `vulnerable`: the optional official `arch-audit --json` helper reports an
+  advisory from `security.archlinux.org`.
+- `unavailable`: an installed package is absent from configured repository
+  listings.
+- keyring health: `archlinux-keyring` and `pacman-key --list-keys` are checked.
+
+When `arch-audit` is absent, the report is still valid and includes the exact
+optional install command. Upstream maintenance is deliberately reported by
+`maintenance`, not relabeled as a vulnerability.
+
+## `blackforge aur`
+
+```text
+blackforge aur --enable-aur search QUERY [--limit N]
+blackforge aur --enable-aur info PACKAGE
+```
+
+Queries the official AUR RPC v5 for maintainer, age, votes, popularity,
+version, and out-of-date metadata. `--enable-aur` is required on each request.
+BlackForge has no AUR install command and never downloads, builds, or executes
+a `PKGBUILD`.
+
+## `blackforge community`
+
+```text
+blackforge community list
+blackforge community show ID
+blackforge community validate PATH
+blackforge community apply ID [--apply] [--snapshot]
+```
+
+Release-reviewed community presets are data-only JSON with source-qualified
+packages. `apply` is plan-only by default. `validate` accepts an unreviewed
+local contribution but still rejects executable fields, unknown packages,
+duplicates, oversize files, and unqualified sources.
+
+## `blackforge lock`
+
+```text
+blackforge lock create PATH [PACKAGE...]
+blackforge lock compare PATH
+blackforge lock sbom PATH OUTPUT [--format cyclonedx|spdx]
+```
+
+`create` records exact installed versions for recognized security packages,
+their trusted source/repository, and the exact package archive SHA-256 when
+that archive remains in pacman's cache. With no package names, non-security
+packages are counted and skipped. `compare` reports matched, missing, and
+version-drift states. `sbom` exports CycloneDX 1.5 or SPDX 2.3 JSON.
+
+## `blackforge snapshot`
+
+```text
+blackforge snapshot status
+blackforge snapshot create [--description TEXT] [--apply]
+blackforge snapshot rollback-plan LOCKFILE [--cache PATH]
+```
+
+`status` detects a Btrfs root, Snapper, and the `root` configuration. Snapshot
+creation is plan-only unless `--apply` is supplied. `rollback-plan` locates
+exact signed package archives in pacman's cache and prints a complete or
+partial `pacman -U` plan; it never executes a downgrade.
+
+## `blackforge dashboard`
+
+```text
+blackforge dashboard build REPORT.html [--record] [--history PATH]
+```
+
+Builds a portable, script-free HTML report with maintenance counts, current
+BlackArch repository availability when it can be checked, catalog deltas, and
+up to 365 recorded observations.
+
+## `blackforge integration`
+
+```text
+blackforge integration systemd DIRECTORY
+blackforge --json integration packagekit
+```
+
+`systemd` generates a disabled weekly user service/timer for review. It never
+enables the timer. `packagekit` emits PackageKit-style package IDs and
+installed/available states; BlackForge is not a PackageKit backend.
 
 ## `blackforge history`
 

@@ -56,7 +56,9 @@ def parse_repository_database(
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
             for index, member in enumerate(archive, start=1):
                 if index > MAX_REPOSITORY_MEMBERS:
-                    raise RepositoryError("Repository database contains too many members")
+                    raise RepositoryError(
+                        "Repository database contains too many members"
+                    )
                 if not member.isfile() or not member.name.endswith("/desc"):
                     continue
                 if member.size > MAX_DESCRIPTION_BYTES:

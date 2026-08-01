@@ -251,10 +251,14 @@ class PacmanBackend:
 
     def available_packages(self) -> dict[str, str]:
         self.require_supported()
-        result = self.runner.run(["pacman", "-Sl", "blackarch"], capture=True, timeout=120)
+        result = self.runner.run(
+            ["pacman", "-Sl", "blackarch"], capture=True, timeout=120
+        )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout).strip()
-            raise BackendError(f"Unable to read the BlackArch package database: {detail}")
+            raise BackendError(
+                f"Unable to read the BlackArch package database: {detail}"
+            )
         packages: dict[str, str] = {}
         for line in result.stdout.splitlines():
             parts = line.split()
@@ -266,7 +270,9 @@ class PacmanBackend:
         self.require_supported()
         result = self.runner.run(["pacman", "-Q"], capture=True, timeout=120)
         if result.returncode != 0:
-            raise BackendError((result.stderr or "Unable to query installed packages").strip())
+            raise BackendError(
+                (result.stderr or "Unable to query installed packages").strip()
+            )
         packages: dict[str, str] = {}
         for line in result.stdout.splitlines():
             parts = line.split(maxsplit=1)
@@ -274,12 +280,16 @@ class PacmanBackend:
                 packages[parts[0]] = parts[1]
         return packages
 
-    def package_executables(self, package: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    def package_executables(
+        self, package: str
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
         validate_package_names([package])
         result = self.runner.run(["pacman", "-Ql", package], capture=True, timeout=60)
         if result.returncode != 0:
             detail = (result.stderr or result.stdout).strip()
-            raise BackendError(f"Unable to inspect installed package {package}: {detail}")
+            raise BackendError(
+                f"Unable to inspect installed package {package}: {detail}"
+            )
         declared: list[str] = []
         missing: list[str] = []
         for line in result.stdout.splitlines():
@@ -302,9 +312,11 @@ class PacmanBackend:
     ) -> dict[str, object]:
         """Return read-only pacman transaction metadata when it is available."""
 
-        names = validate_package_names(
-            [value.split("/", 1)[-1] for value in requested]
-        ) if requested else []
+        names = (
+            validate_package_names([value.split("/", 1)[-1] for value in requested])
+            if requested
+            else []
+        )
         if operation == "remove":
             installed = self.installed_packages()
             return {
@@ -429,7 +441,9 @@ class PacmanBackend:
                     raise BackendError(f"Refusing untrusted setup script: {final_url}")
                 data = response.read(MAX_STRAP_BYTES + 1)
         except OSError as exc:
-            raise BackendError(f"Unable to download the official setup script: {exc}") from exc
+            raise BackendError(
+                f"Unable to download the official setup script: {exc}"
+            ) from exc
         if len(data) > MAX_STRAP_BYTES:
             raise BackendError("Official setup script exceeded the 1 MiB safety limit")
         if not data.startswith(b"#!/"):
@@ -440,7 +454,9 @@ class PacmanBackend:
         if reviewed_sha256 is not None and not re.fullmatch(
             r"[0-9a-fA-F]{64}", reviewed_sha256
         ):
-            raise BackendError("--strap-sha256 must be exactly 64 hexadecimal characters")
+            raise BackendError(
+                "--strap-sha256 must be exactly 64 hexadecimal characters"
+            )
         reviewed_matches = (
             reviewed_sha256 is not None and reviewed_sha256.casefold() == sha256
         )
@@ -451,7 +467,9 @@ class PacmanBackend:
                 "downloaded script and rerun with "
                 f"`--strap-sha256 {sha256}` only if you trust that exact file."
             )
-        descriptor, raw_path = tempfile.mkstemp(prefix="blackforge-strap-", suffix=".sh")
+        descriptor, raw_path = tempfile.mkstemp(
+            prefix="blackforge-strap-", suffix=".sh"
+        )
         path = Path(raw_path)
         with os.fdopen(descriptor, "wb") as handle:
             handle.write(data)

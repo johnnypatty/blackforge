@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="BlackForge installation, command, community preset, and safety documentation.">
+  <title>BlackForge Wiki</title>
+  <link rel="icon" href="../assets/blackforge-logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../styles.css">
+  <script src="wiki.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#wiki-content">Skip to documentation</a>
+  <header class="topbar"><a class="brand" href="../"><img src="../assets/blackforge-logo.svg" alt="" width="34" height="34"><span>BLACKFORGE</span></a><nav style="display:flex"><a href="../">Home</a><a href="https://github.com/johnnypatty/blackforge">GitHub</a></nav></header>
+  <main>
+    <section class="wiki-hero shell"><p class="eyebrow"><span></span> FIELD MANUAL / V0.4</p><h1>BlackForge Wiki</h1><p class="lede">Install confidently, understand every command, and contribute collections people can inspect.</p></section>
+    <div class="wiki-layout shell">
+      <aside class="wiki-nav"><label class="eyebrow" for="wiki-search">SEARCH THE WIKI</label><input id="wiki-search" type="search" placeholder="Search articles…"><ul><li><a href="#install">Installation</a></li><li><a href="#first-run">First run</a></li><li><a href="#commands">Command reference</a></li><li><a href="#audit-lock">Audit, locks & SBOMs</a></li><li><a href="#rollback">Snapshots & rollback</a></li><li><a href="#community">Community presets</a></li><li><a href="#aur">AUR metadata</a></li><li><a href="#dashboard">Dashboard & Linux integration</a></li><li><a href="#safety">Safety model</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></aside>
+      <div id="wiki-content" class="wiki-content">
+        <article id="install" data-search="installation arch linux clone install path"><p class="eyebrow"><span></span> 01</p><h2>Installation</h2><p>BlackForge targets Arch Linux and derivatives with pacman. Python 3.10 or newer is required.</p><div class="code-block"><code>git clone https://github.com/johnnypatty/blackforge
+cd blackforge
+bash install.sh</code></div><p>The user installer creates an isolated environment under <code>~/.local/share/blackforge</code>, links the command into <code>~/.local/bin</code>, and installs shell completions. It refuses unrelated or symbolic-link install targets.</p><div class="callout">The project is unofficial and is not affiliated with BlackArch Linux. Read <code>install.sh</code> before running it.</div><h3>Native Arch package</h3><p>Release assets also include source for the maintained <code>PKGBUILD</code> in <code>packaging/arch</code>.</p></article>
+        <article id="first-run" data-search="first run setup blackarch search dry run install"><p class="eyebrow"><span></span> 02</p><h2>First run</h2><div class="code-block"><code>blackforge doctor
+blackforge search "network mapper"
+blackforge --dry-run install amass
+blackforge setup</code></div><p><code>setup</code> downloads the official BlackArch strap script, verifies the upstream SHA-1 and a displayed SHA-256, and asks for review. Official Arch tools such as <code>arch:extra/nmap</code> do not require BlackArch setup.</p></article>
+        <article id="commands" data-search="commands help reference list search install remove profile collection environment"><p class="eyebrow"><span></span> 03</p><h2>Command reference</h2><p>Run <code>blackforge help COMMAND</code> for every option and examples, or <code>blackforge help --all</code> for the complete manual.</p><table class="command-table"><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
+          <tr><td>search / show / list</td><td>Browse BlackArch and curated official Arch catalog metadata.</td></tr><tr><td>plan install|remove|upgrade</td><td>Resolve dependencies, sizes, conflicts, and exact pacman arguments without changes.</td></tr><tr><td>install / remove / upgrade</td><td>Confirm and run a validated pacman transaction, then record history.</td></tr><tr><td>status --all --remote</td><td>Compare the bundled catalog against the official BlackArch repository database.</td></tr><tr><td>maintenance summary|list</td><td>Separate recently maintained evidence from stale, archived, and unknown evidence.</td></tr><tr><td>collection / community</td><td>Plan or install built-in and reviewed community package sets.</td></tr><tr><td>env export|import</td><td>Reproduce recognized security-tool environments with drift review.</td></tr><tr><td>completion bash|zsh|fish</td><td>Generate shell completion scripts.</td></tr><tr><td>help --lang tr</td><td>Show the Turkish quick-start guide.</td></tr>
+        </tbody></table></article>
+        <article id="audit-lock" data-search="security audit vulnerable outdated lockfile sbom cyclonedx spdx checksum"><p class="eyebrow"><span></span> 04</p><h2>Audit, locks & SBOMs</h2><div class="code-block"><code>sudo pacman -S arch-audit       # optional official advisory helper
+blackforge audit --output audit.json
+blackforge lock create lab.lock.json nmap amass
+blackforge lock compare lab.lock.json
+blackforge lock sbom lab.lock.json lab.cdx.json --format cyclonedx</code></div><p><code>audit</code> keeps four ideas separate: an update is available, a published advisory affects the version, a package disappeared from configured repositories, or an upstream project lacks recent maintenance evidence. They are related but not interchangeable.</p><p>Locks include exact installed versions, trusted source/repository, and SHA-256 when the exact package archive still exists in pacman's local cache. A missing archive checksum is recorded as <code>null</code>, never invented.</p></article>
+        <article id="rollback" data-search="btrfs snapper snapshot pacman cache rollback plan"><p class="eyebrow"><span></span> 05</p><h2>Snapshots & rollback</h2><div class="code-block"><code>blackforge snapshot status
+blackforge snapshot create --description "Before lab refresh"
+blackforge snapshot create --description "Before lab refresh" --apply
+blackforge install --snapshot amass
+blackforge snapshot rollback-plan lab.lock.json</code></div><p>Snapshot creation is plan-only unless <code>--apply</code> is present. Transaction snapshots require a Btrfs root and a configured Snapper profile named <code>root</code>. Rollback planning only locates exact archives and prints the pacman command; it does not execute a downgrade.</p></article>
+        <article id="community" data-search="community presets share contribute json review schema packages"><p class="eyebrow"><span></span> 06</p><h2>Community presets</h2><p>Presets are public, reviewable JSON—not installer scripts. Published presets can contain only an ID, description, GitHub authors, tags, license, review state, and source-qualified package references.</p><div class="code-block"><code>blackforge community list
+blackforge community show network-observation
+blackforge community apply network-observation      # plan
+blackforge community apply network-observation --apply
+blackforge community validate my-preset.json</code></div><h3>Share yours</h3><ol><li>Copy a JSON file from <code>community/presets/</code>.</li><li>Set a unique ID and your GitHub handle.</li><li>Use <code>blackarch:NAME</code> or <code>arch:REPO/NAME</code>.</li><li>Leave <code>reviewed</code> false.</li><li>Run <code>python scripts/validate_community.py</code> and open a pull request.</li></ol><p><a class="text-link" href="https://github.com/johnnypatty/blackforge/issues/new?template=community_preset.yml">Open the guided preset form →</a></p></article>
+        <article id="aur" data-search="aur rpc metadata opt in pkgbuild unsupported"><p class="eyebrow"><span></span> 07</p><h2>AUR metadata</h2><div class="code-block"><code>blackforge aur --enable-aur search zaproxy
+blackforge aur --enable-aur info zaproxy</code></div><p>The command queries the official AUR RPC for metadata such as maintainer, age, votes, popularity, and out-of-date state. AUR content is user-submitted and unsupported. BlackForge deliberately has no AUR install command and never downloads, reviews, builds, or executes a PKGBUILD.</p></article>
+        <article id="dashboard" data-search="dashboard html history systemd timer packagekit man page linux"><p class="eyebrow"><span></span> 08</p><h2>Dashboard & Linux integration</h2><div class="code-block"><code>blackforge dashboard build report.html --record
+blackforge integration systemd ~/.config/systemd/user
+systemctl --user enable --now blackforge-update.timer
+blackforge --json integration packagekit
+man blackforge</code></div><p>The HTML report is portable and contains no JavaScript. The generated systemd timer is disabled until you review and explicitly enable it; it checks catalog changes weekly. PackageKit output uses compatible package IDs and state names, but BlackForge does not claim to be a PackageKit backend.</p></article>
+        <article id="safety" data-search="safety authorization security trust signatures dry run"><p class="eyebrow"><span></span> 09</p><h2>Safety model</h2><ul><li>Package references are strictly validated and resolved against bundled trusted catalogs.</li><li>Mutating operations show a plan and require confirmation unless you deliberately pass <code>-y</code>.</li><li>Pacman handles official repository signatures and dependency resolution.</li><li>Community data cannot contain commands, URLs, hooks, or unknown packages.</li><li>Remote endpoints are fixed HTTPS origins with bounded responses and timeouts.</li><li>Maintenance evidence is never presented as proof that a tool runs correctly.</li></ul><div class="callout">Use security tools only on systems you own or where you have explicit permission. BlackForge organizes packages; it does not grant authorization.</div></article>
+        <article id="troubleshooting" data-search="troubleshooting command not found path arch linux repository sudo"><p class="eyebrow"><span></span> 10</p><h2>Troubleshooting</h2><h3>Command not found</h3><div class="code-block"><code>export PATH="$HOME/.local/bin:$PATH"
+blackforge --version</code></div><h3>BlackArch package unavailable</h3><div class="code-block"><code>blackforge repo status
+blackforge setup
+sudo pacman -Syy</code></div><h3>Get a diagnostic snapshot</h3><div class="code-block"><code>blackforge doctor
+blackforge --json audit
+blackforge --json snapshot status</code></div><p>Open an issue without credentials, private hostnames, or target data.</p></article>
+        <p id="no-results" class="callout" hidden>No wiki article matches that search.</p>
+      </div>
+    </div>
+  </main>
+  <footer><div class="shell footer-grid"><div class="brand"><img src="../assets/blackforge-logo.svg" alt="" width="30" height="30"><span>BLACKFORGE</span></div><p>Documentation for the unofficial BlackForge project.</p><div><a href="../">Home</a><a href="https://github.com/johnnypatty/blackforge/issues">Issues</a></div></div></footer>
+</body>
+</html>
