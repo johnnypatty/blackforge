@@ -32,9 +32,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -48,28 +45,42 @@ jobs:
           python scripts/validate_community.py
           python scripts/build_site.py _site
           python scripts/check_site.py _site
-      - name: Configure Pages
+      - name: Upload the verified site artifact
         if: github.event_name != 'pull_request'
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          enablement: true
-      - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
-        with:
+          name: blackforge-pages
           path: _site
+          include-hidden-files: true
+          if-no-files-found: error
 
-  deploy:
+  publish:
     if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: blackforge-pages
+          path: _site
+      - name: Publish the generated gh-pages branch
+        run: |
+          git fetch origin gh-pages
+          git worktree add _deploy origin/gh-pages
+          find _deploy -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf -- {} +
+          cp -a _site/. _deploy/
+          cd _deploy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          if git diff --cached --quiet; then
+            echo "The published site is already current"
+            exit 0
+          fi
+          git commit -m "docs: publish site for $GITHUB_SHA"
+          git push origin HEAD:gh-pages
