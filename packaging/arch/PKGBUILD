@@ -16,7 +16,7 @@ optdepends=(
   'snapper: optional Btrfs transaction snapshots'
 )
 source=("${_python_name}-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/${_python_name}-${pkgver}.tar.gz")
-sha256sums=('a96e637b5aadb2b26b48ebc3dc6fe3589217801801f0d705d6b0da504bbbea38')
+sha256sums=('f075fbec105403f5cbe1ad68da40ea9a012ed3aabb01c379a60a66e639ce121b')
 
 build() {
   cd "${srcdir}/${_python_name}-${pkgver}"

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/bootstrap-v04.yml"
+      - "packaging/arch/PKGBUILD"
 
 permissions:
   contents: write
