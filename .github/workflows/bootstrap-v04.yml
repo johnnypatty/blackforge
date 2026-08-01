@@ -56,7 +56,7 @@ jobs:
             exit 0
           fi
           if ! git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG"; then
-            git tag -a "$RELEASE_TAG" -m "BlackForge ${RELEASE_TAG#v}" "$GITHUB_SHA"
+            git tag "$RELEASE_TAG" "$GITHUB_SHA"
             git push origin "$RELEASE_TAG"
           fi
           gh release create "$RELEASE_TAG" \
