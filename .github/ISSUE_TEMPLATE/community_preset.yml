@@ -1,7 +1,7 @@
 name: Community preset
 description: Propose a safe, data-only package collection for public review
 title: "preset: "
-labels: ["community-preset"]
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
