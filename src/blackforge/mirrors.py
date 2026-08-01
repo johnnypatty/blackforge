@@ -355,9 +355,7 @@ def recommend_mirror(
 
 def _validated_target(path: Path, expected_path: Path) -> Path:
     if path.name != "blackarch-mirrorlist":
-        raise MirrorError(
-            "Refusing to modify a file not named blackarch-mirrorlist"
-        )
+        raise MirrorError("Refusing to modify a file not named blackarch-mirrorlist")
     if path.is_symlink():
         raise MirrorError("Refusing to replace a symbolic-link mirror list")
     try:

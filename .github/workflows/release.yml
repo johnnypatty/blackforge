@@ -11,6 +11,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Keep the Python release archives reproducible across rebuilds.
+      SOURCE_DATE_EPOCH: "1785542400"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -25,9 +28,20 @@ jobs:
           ruff check .
           pytest
           python scripts/check_release.py --tag "$GITHUB_REF_NAME"
-      - name: Build and checksum release archives
+      - name: Build reproducible release archives and checksums
         run: |
-          python -m build
+          version="${GITHUB_REF_NAME#v}"
+          tree="$(git show -s --format=%T "$GITHUB_SHA")"
+          python -m build --wheel
+          git archive \
+            --format=tar \
+            --prefix="blackforge_cli-${version}/" \
+            --mtime="@${SOURCE_DATE_EPOCH}" \
+            "$tree" \
+            | gzip -n -9 > "dist/blackforge_cli-${version}.tar.gz"
+          python scripts/check_release.py \
+            --tag "$GITHUB_REF_NAME" \
+            --archive "dist/blackforge_cli-${version}.tar.gz"
           cd dist
           sha256sum blackforge_cli-* > SHA256SUMS
           cp "../docs/releases/${GITHUB_REF_NAME}.md" RELEASE_NOTES.md

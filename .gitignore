@@ -5,5 +5,7 @@ __pycache__/
 .venv/
 dist/
 build/
+_site/
+/work/
 *.egg-info/
 blackforge-audit.json

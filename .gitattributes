@@ -14,3 +14,15 @@ PKGBUILD text eol=lf
 
 *.gz binary
 *.whl binary
+
+# Keep GitHub release source archives small and avoid a PKGBUILD checksum loop.
+/.github export-ignore
+/community export-ignore
+/docs/releases export-ignore
+/packaging/arch export-ignore
+/reports export-ignore
+/scripts export-ignore
+/site export-ignore
+/tests export-ignore
+/CONTRIBUTING.md export-ignore
+/SECURITY.md export-ignore

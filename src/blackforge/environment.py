@@ -25,7 +25,9 @@ def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _validate_plain_text(value: object, field: str, *, maximum: int = MAX_TEXT_LENGTH) -> str:
+def _validate_plain_text(
+    value: object, field: str, *, maximum: int = MAX_TEXT_LENGTH
+) -> str:
     if not isinstance(value, str) or not value.strip():
         raise EnvironmentFileError(f"{field} must be a non-empty string")
     if len(value) > maximum:
@@ -96,7 +98,9 @@ class EnvironmentPackage:
     @classmethod
     def from_dict(cls, value: object, *, index: int) -> EnvironmentPackage:
         if not isinstance(value, dict):
-            raise EnvironmentFileError(f"Environment package at index {index} is not an object")
+            raise EnvironmentFileError(
+                f"Environment package at index {index} is not an object"
+            )
         if set(value) - {"ref", "version"}:
             unknown = ", ".join(sorted(set(value) - {"ref", "version"}))
             raise EnvironmentFileError(
@@ -130,7 +134,9 @@ class EnvironmentManifest:
             )
         refs = [package.ref.qualified for package in self.packages]
         if len(refs) != len(set(refs)):
-            raise EnvironmentFileError("Environment contains duplicate package references")
+            raise EnvironmentFileError(
+                "Environment contains duplicate package references"
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -245,9 +251,7 @@ def write_environment(path: Path, manifest: EnvironmentManifest) -> None:
     try:
         atomic_write_json(path, manifest.to_dict())
     except OSError as exc:
-        raise EnvironmentFileError(
-            f"Unable to save environment {path}: {exc}"
-        ) from exc
+        raise EnvironmentFileError(f"Unable to save environment {path}: {exc}") from exc
 
 
 def export_environment(
@@ -265,9 +269,7 @@ def export_environment(
 def read_environment(path: Path) -> EnvironmentManifest:
     try:
         if path.stat().st_size > MAX_ENVIRONMENT_FILE_BYTES:
-            raise EnvironmentFileError(
-                "Environment file exceeds its safety size limit"
-            )
+            raise EnvironmentFileError("Environment file exceeds its safety size limit")
         value = json.loads(path.read_text(encoding="utf-8"))
     except EnvironmentFileError:
         raise
@@ -280,7 +282,9 @@ def _validated_current_packages(current: Mapping[str, str]) -> dict[str, str]:
     validated: dict[str, str] = {}
     for ref_value, version_value in current.items():
         ref = PackageRef.parse(ref_value)
-        version = _validate_version(version_value, f"Current version for {ref.qualified}")
+        version = _validate_version(
+            version_value, f"Current version for {ref.qualified}"
+        )
         if ref.qualified in validated:
             raise EnvironmentFileError(
                 f"Current package set contains duplicate reference {ref.qualified}"

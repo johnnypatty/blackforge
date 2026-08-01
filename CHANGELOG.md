@@ -4,6 +4,56 @@ All notable BlackForge changes are recorded here.
 
 ## Unreleased
 
+## 0.4.0 - 2026-08-01
+
+### Added
+
+- Added `blackforge audit` with distinct outdated, vulnerable, unavailable,
+  and keyring states plus optional official `arch-audit` advisory integration.
+- Added exact package lockfiles, cross-machine drift comparison, cached archive
+  checksums, and CycloneDX 1.5 / SPDX 2.3 SBOM export.
+- Added Btrfs/Snapper readiness detection, opt-in pre-transaction snapshots,
+  and non-executing exact-version rollback plans from pacman's cache.
+- Added strict data-only community presets, three reviewed starter sets, CLI
+  validation/planning, a JSON schema, contribution instructions, CI checks,
+  and a guided GitHub issue form.
+- Added opt-in, read-only AUR RPC metadata discovery. BlackForge deliberately
+  does not download, build, or execute PKGBUILDs.
+- Added portable maintenance dashboards with bounded historical observations,
+  repository availability, catalog deltas, and maintenance evidence counts.
+- Added a man page, optional disabled systemd user timer, PackageKit-style JSON
+  status output, Turkish quick help, and `arch-audit` to the curated official
+  Arch catalog.
+- Added a responsive GitHub Pages project site, searchable wiki, live reviewed
+  preset gallery, deterministic site builder, link checker, and deployment CI.
+
+### Changed
+
+- Install, upgrade, built-in collection, and community collection operations
+  accept explicit `--snapshot` protection when Snapper is configured.
+- The Linux installer installs the man page, while the native Arch recipe also
+  ships the optional systemd units and documents optional integrations.
+- README and command documentation now cover all v0.4 commands, verification
+  boundaries, community review, project website, and safety behavior.
+
+### Security
+
+- Community presets reject executable fields, remote URLs, unknown packages,
+  unqualified sources, duplicates, excessive sizes, and unreviewed release data.
+- AUR requests are bounded to the official HTTPS RPC endpoint and expose
+  metadata only.
+- Rollback support never silently restores a filesystem or auto-downgrades a
+  package; it creates snapshots or prints complete, reviewable package plans.
+- The Pages workflow validates community data and local links before deploying,
+  uses minimal permissions, and keeps page deployment in a separate job.
+
+### Verification
+
+- Added v0.4 unit and CLI tests for presets, SBOMs, lock drift, cache rollback,
+  dashboards, AUR opt-in, localization, and read-only planning.
+- Added desktop and mobile browser checks for layout, navigation, preset/wiki
+  filtering, copy behavior, horizontal overflow, and console errors.
+
 ## 0.3.0 - 2026-07-29
 
 ### Added

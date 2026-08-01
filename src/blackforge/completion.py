@@ -5,7 +5,7 @@ COMMANDS = (
     "doctor status check "
     "install get add remove rm uninstall upgrade repo profile export "
     "completion interactive tui plan history resume mirror updates self-update "
-    "env maintenance collection"
+    "env maintenance collection community audit lock snapshot aur dashboard integration"
 )
 
 

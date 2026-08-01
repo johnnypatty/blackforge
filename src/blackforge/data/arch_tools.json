@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "source": "https://archlinux.org/packages/",
-  "fetched_at": "2026-07-29T00:00:00+00:00",
+  "fetched_at": "2026-08-01T00:00:00+00:00",
   "label": "Official Arch Linux repositories (curated)",
-  "tool_count": 9,
+  "tool_count": 10,
   "tools": [
     {
       "name": "aircrack-ng",
@@ -22,6 +22,22 @@
         "airmon-ng",
         "airodump-ng",
         "aireplay-ng"
+      ]
+    },
+    {
+      "name": "arch-audit",
+      "version": "0.2.0-5",
+      "description": "Audit installed Arch packages against official security advisories.",
+      "repository": "extra",
+      "architecture": "x86_64",
+      "website": "https://gitlab.archlinux.org/archlinux/arch-audit",
+      "official_url": "https://archlinux.org/packages/extra/x86_64/arch-audit/",
+      "categories": [
+        "vulnerability-auditing",
+        "package-auditing"
+      ],
+      "commands": [
+        "arch-audit"
       ]
     },
     {

@@ -147,10 +147,7 @@ def _string_tuple(value: object) -> tuple[str, ...]:
         raise TypeError("expected a list of strings")
     if len(value) > MAX_UPDATE_ITEMS:
         raise ValueError("update list exceeds the safety item limit")
-    cleaned = tuple(
-        _plain_text(item, "update package name")
-        for item in value
-    )
+    cleaned = tuple(_plain_text(item, "update package name") for item in value)
     if len(cleaned) != len(set(cleaned)):
         raise ValueError("update list contains duplicates")
     return cleaned

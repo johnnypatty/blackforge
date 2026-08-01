@@ -39,7 +39,9 @@ class Preset:
         if not self.packages:
             raise PresetError(f"Preset {self.id!r} cannot be empty")
         if len(self.packages) != len(set(self.packages)):
-            raise PresetError(f"Preset {self.id!r} contains duplicate package references")
+            raise PresetError(
+                f"Preset {self.id!r} contains duplicate package references"
+            )
         if not self.categories:
             raise PresetError(f"Preset {self.id!r} needs at least one category")
         for category in self.categories:
@@ -158,8 +160,7 @@ _BUILTIN_PRESETS = (
         id="binary-analysis",
         name="Binary analysis essentials",
         description=(
-            "Static and program-analysis tools for binaries and Android "
-            "applications."
+            "Static and program-analysis tools for binaries and Android applications."
         ),
         packages=(
             "androguard",
@@ -172,9 +173,7 @@ _BUILTIN_PRESETS = (
     Preset(
         id="packet-analysis",
         name="Packet analysis essentials",
-        description=(
-            "Official Arch command-line and graphical packet-analysis tools."
-        ),
+        description=("Official Arch command-line and graphical packet-analysis tools."),
         packages=(
             "arch:extra/tcpdump",
             "arch:extra/wireshark-cli",
@@ -238,9 +237,7 @@ def validate_preset(
     )
     targets = [package.package_target for package in resolved]
     if len(targets) != len(set(targets)):
-        raise PresetError(
-            f"Preset {preset.id!r} resolves to duplicate package targets"
-        )
+        raise PresetError(f"Preset {preset.id!r} resolves to duplicate package targets")
     return resolved
 
 

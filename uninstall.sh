@@ -56,7 +56,8 @@ fi
 rm -f -- \
     "${data_home}/bash-completion/completions/blackforge" \
     "${data_home}/zsh/site-functions/_blackforge" \
-    "${config_home}/fish/completions/blackforge.fish"
+    "${config_home}/fish/completions/blackforge.fish" \
+    "${data_home}/man/man1/blackforge.1"
 rm -rf -- "$install_root"
 
 printf 'BlackForge application files were removed.\n'

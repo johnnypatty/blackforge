@@ -22,6 +22,9 @@ jobs:
       - run: python -m pip install -e .
       - run: ruff check .
       - run: pytest
+      - run: python scripts/validate_community.py
+      - run: python scripts/build_site.py _site
+      - run: python scripts/check_site.py _site
       - run: python scripts/check_release.py
       - run: blackforge --version
       - run: blackforge search network mapper --limit 5
@@ -33,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install Arch prerequisites
-        run: pacman -Syu --noconfirm python python-pip curl gnupg
+        run: pacman -Syu --noconfirm python python-pip curl gnupg arch-audit
       - name: Install BlackForge with the Linux installer
         run: bash install.sh
       - name: Verify help, catalogs, maintenance, plans, and shell completion
@@ -45,6 +48,9 @@ jobs:
           "${HOME}/.local/bin/blackforge" plan install arch:extra/nmap | grep -q "extra/nmap"
           "${HOME}/.local/bin/blackforge" maintenance summary | grep -q "recently_maintained"
           "${HOME}/.local/bin/blackforge" collection show network-discovery | grep -q nmap
+          "${HOME}/.local/bin/blackforge" community show network-observation | grep -q nmap
+          "${HOME}/.local/bin/blackforge" --json audit | grep -q '"vulnerable"'
+          "${HOME}/.local/bin/blackforge" help --lang tr | grep -q "Turkce"
           "${HOME}/.local/bin/blackforge" completion bash | grep -q complete
       - name: Install and remove a curated official Arch tool
         run: |

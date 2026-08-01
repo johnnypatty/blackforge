@@ -59,7 +59,11 @@ class _BlackArchToolsParser(HTMLParser):
         if tag == "td":
             classes = set(attributes.get("class", "").split())
             self._field = next(
-                (field for css_class, field in self._FIELDS.items() if css_class in classes),
+                (
+                    field
+                    for css_class, field in self._FIELDS.items()
+                    if css_class in classes
+                ),
                 None,
             )
             self._parts = []
@@ -87,11 +91,13 @@ class _BlackArchToolsParser(HTMLParser):
                 # the description, which shifts the generated HTML columns.
                 # Recover the three intended values when the delimiters remain.
                 if not category.startswith("blackarch-") and website.count("|") >= 2:
-                    description_tail, recovered_category, recovered_website = website.split(
-                        "|", maxsplit=2
+                    description_tail, recovered_category, recovered_website = (
+                        website.split("|", maxsplit=2)
                     )
                     if recovered_category.strip().startswith("blackarch-"):
-                        description = f"{description} {description_tail.strip()}".strip()
+                        description = (
+                            f"{description} {description_tail.strip()}".strip()
+                        )
                         category = recovered_category.strip()
                         website = recovered_website.strip()
                 self.tools.append(
@@ -139,9 +145,7 @@ class Catalog:
         limit: int | None = 50,
     ) -> list[Tool]:
         terms = [term.casefold() for term in re.findall(r"[\w.+-]+", query)]
-        candidates = (
-            self.categories.get(category, []) if category else self.tools
-        )
+        candidates = self.categories.get(category, []) if category else self.tools
         ranked: list[tuple[int, str, Tool]] = []
         for tool in candidates:
             name = tool.name.casefold()
@@ -149,7 +153,13 @@ class Catalog:
             if terms and not all(term in haystack for term in terms):
                 continue
             score = sum(
-                100 if term == name else 50 if name.startswith(term) else 20 if term in name else 1
+                100
+                if term == name
+                else 50
+                if name.startswith(term)
+                else 20
+                if term in name
+                else 1
                 for term in terms
             )
             ranked.append((-score, name, tool))
@@ -188,7 +198,9 @@ class Catalog:
             try:
                 tool = Tool.from_dict(item)
             except (KeyError, TypeError, ValueError) as exc:
-                raise CatalogError(f"Malformed catalog tool at index {index}: {exc}") from exc
+                raise CatalogError(
+                    f"Malformed catalog tool at index {index}: {exc}"
+                ) from exc
             if not tool.name.strip() or not tool.category.strip():
                 raise CatalogError(
                     f"Catalog tool at index {index} requires a name and category"
@@ -205,7 +217,9 @@ class Catalog:
             try:
                 count = int(declared_count)
             except (TypeError, ValueError) as exc:
-                raise CatalogError(f"Invalid catalog tool count: {declared_count!r}") from exc
+                raise CatalogError(
+                    f"Invalid catalog tool count: {declared_count!r}"
+                ) from exc
             if count != len(catalog.tools):
                 raise CatalogError(
                     f"Catalog count mismatch: declared {declared_count}, "
@@ -278,7 +292,9 @@ def download_catalog(
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+        with urllib.request.urlopen(
+            request, timeout=timeout, context=context
+        ) as response:
             final_url = response.geturl()
             final = urllib.parse.urlsplit(final_url)
             if (

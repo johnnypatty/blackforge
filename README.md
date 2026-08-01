@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/johnnypatty/blackforge/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/johnnypatty/blackforge/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://johnnypatty.github.io/blackforge/"><img alt="Website" src="https://img.shields.io/badge/site-live-F5B642"></a>
   <img alt="Arch Linux" src="https://img.shields.io/badge/platform-Arch%20Linux-1793D1?logo=archlinux&logoColor=white">
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white">
   <img alt="Runtime dependencies: zero" src="https://img.shields.io/badge/runtime%20dependencies-zero-22C55E">
@@ -33,7 +34,13 @@ of well-known security packages from official Arch repositories, such as
 `nmap`, `masscan`, `hashcat`, `john`, `sqlmap`, and Wireshark.
 
 It does **not** vendor thousands of upstream projects, run arbitrary project
-installers, use the AUR, or claim that every listed program executes correctly.
+installers, install from the AUR, or claim that every listed program executes
+correctly. The opt-in AUR command reads metadata only and never downloads or
+executes a `PKGBUILD`.
+
+**[Open the project website](https://johnnypatty.github.io/blackforge/)** ·
+**[Read the searchable wiki](https://johnnypatty.github.io/blackforge/wiki/)** ·
+**[Browse community presets](https://johnnypatty.github.io/blackforge/#presets)**
 
 ## At a glance
 
@@ -43,7 +50,8 @@ installers, use the AUR, or claim that every listed program executes correctly.
 | Published in the audited x86-64 repository | **2,858** | Package appeared in the refreshed 2026-07-29 repository database check |
 | Website-listed but absent from that snapshot | **3** | `rtl`, `sr`, and `vega`; not proof their upstreams are dead |
 | BlackArch functional categories | **49** | Scanner, webapp, forensic, wireless, and other BlackArch categories |
-| Curated official Arch packages | **9** | Reviewed package metadata from official `core`/`extra`/`multilib` only |
+| Curated official Arch packages | **10** | Reviewed metadata from official repositories, including `arch-audit` |
+| Reviewed community presets | **3** | Data-only, source-qualified package sets; no commands or hooks |
 
 **Published is not the same as runtime-tested.** Repository presence proves that
 a package was available in a specific snapshot. It does not prove compatibility
@@ -57,6 +65,8 @@ with every device, desktop, service, credential, target, or code path.
 - [Two package sources](#two-package-sources)
 - [Maintenance evidence](#maintenance-evidence)
 - [Twelve feature areas](#twelve-feature-areas)
+- [Seven v0.4 safety features](#seven-v04-safety-features)
+- [Community presets](#community-presets)
 - [Common workflows](#common-workflows)
 - [Command map](#command-map)
 - [Verification on Arch Linux](#verification-on-arch-linux)
@@ -172,11 +182,11 @@ BlackForge deliberately keeps the sources separate.
 | Source | Scope | Example reference | Installed by |
 | --- | --- | --- | --- |
 | **BlackArch** | All 2,861 bundled website entries | `amass` or `blackarch:amass` | `pacman` from `[blackarch]` |
-| **Official Arch, curated** | Nine reviewed packages from official repositories | `arch:extra/nmap` | `pacman` from `core`/`extra`/`multilib` |
+| **Official Arch, curated** | Ten reviewed packages from official repositories | `arch:extra/nmap` | `pacman` from `core`/`extra`/`multilib` |
 
 The curated official Arch list currently contains:
 
-`aircrack-ng`, `hashcat`, `john`, `masscan`, `nmap`, `sqlmap`, `tcpdump`,
+`aircrack-ng`, `arch-audit`, `hashcat`, `john`, `masscan`, `nmap`, `sqlmap`, `tcpdump`,
 `wireshark-cli`, and `wireshark-qt`.
 
 Use explicit references in scripts and shared profiles:
@@ -260,6 +270,56 @@ Included collection IDs:
 - `password-audit`
 - `web-assessment`
 - `wireless-audit`
+
+## Seven v0.4 safety features
+
+| Feature | Start here | Important boundary |
+| --- | --- | --- |
+| Host security audit | `blackforge audit` | Official advisories require the optional `arch-audit` package; maintenance evidence stays separate |
+| Locks and SBOM export | `blackforge lock create lab.lock.json` | A checksum is recorded only when the exact package archive exists in pacman's cache |
+| Snapper and rollback planning | `blackforge snapshot status` | Snapshots and package changes are explicit; rollback planning never auto-downgrades |
+| Reviewed community collections | `blackforge community list` | JSON can contain package data only—no scripts, hooks, URLs, or unknown tools |
+| Optional AUR discovery | `blackforge aur --enable-aur search QUERY` | Metadata only; BlackForge never downloads, builds, or executes a `PKGBUILD` |
+| Maintenance dashboard | `blackforge dashboard build report.html --record` | Portable, script-free HTML; history is local and bounded |
+| Native Linux integration | `man blackforge` | The generated systemd timer is disabled until the user explicitly enables it |
+
+Create a lock and two standard SBOM formats:
+
+```bash
+blackforge lock create lab.lock.json nmap amass
+blackforge lock compare lab.lock.json
+blackforge lock sbom lab.lock.json lab.cdx.json --format cyclonedx
+blackforge lock sbom lab.lock.json lab.spdx.json --format spdx
+```
+
+Use an opt-in Snapper snapshot around a transaction:
+
+```bash
+blackforge snapshot status
+blackforge --dry-run install --snapshot amass
+blackforge install --snapshot amass
+```
+
+## Community presets
+
+The [community hub](https://johnnypatty.github.io/blackforge/#presets) displays
+every preset bundled in a release. A preset is a small, public JSON document
+with a purpose, GitHub authors, tags, and source-qualified packages.
+
+```bash
+blackforge community list
+blackforge community show network-observation
+blackforge community apply network-observation          # plan only
+blackforge community apply network-observation --apply  # confirm and install
+blackforge community validate my-preset.json
+```
+
+To share one, copy a file from `community/presets/`, leave `reviewed` set to
+`false`, run `python scripts/validate_community.py`, and open a pull request.
+The validator rejects executable fields, unknown packages, duplicate IDs, and
+unqualified sources. The guided
+[community preset form](https://github.com/johnnypatty/blackforge/issues/new?template=community_preset.yml)
+is another way to start the public review.
 
 Collections are reviewed starter sets, not permission to use their tools against
 third-party systems.

@@ -112,13 +112,19 @@ class PackageChange:
         if self.action == "remove" and (
             self.before_version is None or self.after_version is not None
         ):
-            raise HistoryError("Remove history requires a before_version and no after_version")
+            raise HistoryError(
+                "Remove history requires a before_version and no after_version"
+            )
         if self.action in {"upgrade", "reinstall"} and (
             self.before_version is None or self.after_version is None
         ):
-            raise HistoryError(f"{self.action} history requires before and after versions")
+            raise HistoryError(
+                f"{self.action} history requires before and after versions"
+            )
         if self.action == "unchanged" and self.before_version != self.after_version:
-            raise HistoryError("Unchanged history requires equal before and after versions")
+            raise HistoryError(
+                "Unchanged history requires equal before and after versions"
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -201,7 +207,9 @@ class HistoryRecord:
             raise HistoryError(f"History record at index {index} has an invalid shape")
         packages_value = value["packages"]
         if not isinstance(packages_value, list):
-            raise HistoryError(f"History record at index {index} packages must be a list")
+            raise HistoryError(
+                f"History record at index {index} packages must be a list"
+            )
         if len(packages_value) > MAX_HISTORY_PACKAGES:
             raise HistoryError(
                 f"History record at index {index} exceeds the package limit"
@@ -321,7 +329,9 @@ class HistoryStore:
         try:
             with exclusive_state_lock(self.path):
                 records = list(self.records())
-                if any(item.transaction_id == record.transaction_id for item in records):
+                if any(
+                    item.transaction_id == record.transaction_id for item in records
+                ):
                     raise HistoryError(
                         f"History already contains transaction {record.transaction_id}"
                     )
@@ -447,8 +457,7 @@ def plan_undo(record: HistoryRecord) -> UndoPlan:
         steps=tuple(steps),
         automatic_execution_supported=(
             any(
-                step.action == "remove-newly-installed" and step.exact
-                for step in steps
+                step.action == "remove-newly-installed" and step.exact for step in steps
             )
             and all(
                 step.action in {"remove-newly-installed", "no-op"} and step.exact

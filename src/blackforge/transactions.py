@@ -230,9 +230,7 @@ def classify_retry(
         or max_attempts < 1
         or max_attempts > MAX_ATTEMPTS
     ):
-        raise TransactionError(
-            f"max_attempts must be between 1 and {MAX_ATTEMPTS}"
-        )
+        raise TransactionError(f"max_attempts must be between 1 and {MAX_ATTEMPTS}")
     if attempt > max_attempts:
         raise TransactionError("attempt cannot exceed max_attempts")
     category = _retry_category(error)
@@ -318,12 +316,17 @@ class TransactionRecord:
             or self.attempt > self.max_attempts
         ):
             raise TransactionError("Invalid bounded-attempt metadata")
-        if self.retry_category is not None and self.retry_category not in RETRY_CATEGORIES:
+        if (
+            self.retry_category is not None
+            and self.retry_category not in RETRY_CATEGORIES
+        ):
             raise TransactionError("Invalid retry category")
         if self.status == "failed":
             if not isinstance(self.error, str) or not self.error:
                 raise TransactionError("Failed transactions require an error")
-        elif self.error is not None or self.retryable or self.retry_category is not None:
+        elif (
+            self.error is not None or self.retryable or self.retry_category is not None
+        ):
             raise TransactionError(
                 "Only failed transactions may contain retry/error metadata"
             )
@@ -342,9 +345,7 @@ class TransactionRecord:
             "action": self.action,
             "status": self.status,
             "packages": [ref.qualified for ref in self.packages],
-            "completed_packages": [
-                ref.qualified for ref in self.completed_packages
-            ],
+            "completed_packages": [ref.qualified for ref in self.completed_packages],
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "attempt": self.attempt,
@@ -376,7 +377,9 @@ class TransactionRecord:
             raise TransactionError(f"Transaction at index {index} has an invalid shape")
         packages_value = value["packages"]
         completed_value = value["completed_packages"]
-        if not isinstance(packages_value, list) or not isinstance(completed_value, list):
+        if not isinstance(packages_value, list) or not isinstance(
+            completed_value, list
+        ):
             raise TransactionError(
                 f"Transaction at index {index} package fields must be lists"
             )
@@ -438,21 +441,15 @@ class ResumeMetadata:
             "next_attempt": self.next_attempt,
             "max_attempts": self.max_attempts,
             "retry_category": self.retry_category,
-            "completed_packages": [
-                ref.qualified for ref in self.completed_packages
-            ],
-            "remaining_packages": [
-                ref.qualified for ref in self.remaining_packages
-            ],
+            "completed_packages": [ref.qualified for ref in self.completed_packages],
+            "remaining_packages": [ref.qualified for ref in self.remaining_packages],
             "reason": self.reason,
         }
 
 
 def _resume_metadata(record: TransactionRecord) -> ResumeMetadata:
     completed = {ref.qualified for ref in record.completed_packages}
-    remaining = tuple(
-        ref for ref in record.packages if ref.qualified not in completed
-    )
+    remaining = tuple(ref for ref in record.packages if ref.qualified not in completed)
     can_resume = (
         record.status == "failed"
         and record.retryable
@@ -591,9 +588,7 @@ class TransactionJournal:
                 f"Transaction action {action!r} requires package references"
             )
         classify_retry("not retryable", attempt=1, max_attempts=max_attempts)
-        identifier = _validate_transaction_id(
-            transaction_id or str(uuid.uuid4())
-        )
+        identifier = _validate_transaction_id(transaction_id or str(uuid.uuid4()))
         try:
             with exclusive_state_lock(self.path):
                 records = list(self.records())

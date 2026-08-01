@@ -81,10 +81,12 @@ ln -sfn -- "${venv}/bin/blackforge" "$launcher"
 bash_completion="${data_home}/bash-completion/completions"
 zsh_completion="${data_home}/zsh/site-functions"
 fish_completion="${config_home}/fish/completions"
-mkdir -p -- "$bash_completion" "$zsh_completion" "$fish_completion"
+man_dir="${data_home}/man/man1"
+mkdir -p -- "$bash_completion" "$zsh_completion" "$fish_completion" "$man_dir"
 "${venv}/bin/blackforge" completion bash > "${bash_completion}/blackforge"
 "${venv}/bin/blackforge" completion zsh > "${zsh_completion}/_blackforge"
 "${venv}/bin/blackforge" completion fish > "${fish_completion}/blackforge.fish"
+install -m 0644 -- "${project_dir}/docs/blackforge.1" "${man_dir}/blackforge.1"
 
 printf '\nBlackForge installed: %s\n' "$launcher"
 case ":${PATH}:" in
@@ -98,3 +100,4 @@ printf '\nNext:\n'
 printf '  blackforge setup\n'
 printf '  blackforge search "subdomain enumeration"\n'
 printf '  blackforge install amass\n'
+printf '  man blackforge\n'

@@ -10,6 +10,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
+from .audit import SecurityAuditError, audit_host
+from .aur import AurError, aur_info, search_aur
 from .backend import (
     BackendError,
     PacmanBackend,
@@ -25,7 +27,14 @@ from .catalog import (
     load_catalog,
     resolve_names,
 )
+from .community import (
+    CommunityPresetError,
+    bundled_community_presets,
+    read_community_preset,
+    resolve_community_preset,
+)
 from .completion import script as completion_script
+from .dashboard import DashboardError, build_dashboard
 from .environment import (
     EnvironmentFileError,
     PackageRef,
@@ -36,6 +45,15 @@ from .environment import (
 )
 from .health import audit_repository_snapshot, audit_tools
 from .history import HistoryError, HistoryStore, make_history_record, plan_undo
+from .integrations import packagekit_status, write_systemd_units
+from .lockfiles import (
+    LockfileError,
+    compare_lock,
+    create_lock,
+    read_lock,
+    sbom_from_lock,
+    write_lock,
+)
 from .maintenance import MaintenanceError, load_bundled_maintenance
 from .mirrors import (
     DEFAULT_MIRRORLIST,
@@ -56,6 +74,12 @@ from .repository import (
     read_repository_database,
 )
 from .self_update import SelfUpdateError, apply_release, check_latest
+from .snapshots import (
+    SnapshotError,
+    create_snapshot,
+    pacman_cache_rollback_plan,
+    snapshot_status,
+)
 from .sources import (
     ArchTool,
     SourceError,
@@ -98,15 +122,19 @@ def _parser() -> argparse.ArgumentParser:
         epilog=(
             "Start here:\n"
             "  blackforge help install\n"
-            "  blackforge search \"network mapper\"\n"
+            '  blackforge search "network mapper"\n'
             "  blackforge --dry-run install amass\n"
             "  blackforge doctor\n\n"
             "Security tools must only be used on systems you own or are authorized to test."
         ),
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     parser.add_argument("--catalog", type=Path, help="use a specific catalog JSON file")
-    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -137,6 +165,12 @@ def _parser() -> argparse.ArgumentParser:
         "--all",
         action="store_true",
         help="print help for every canonical command and subcommand",
+    )
+    help_command.add_argument(
+        "--lang",
+        choices=("en", "tr"),
+        default="en",
+        help="help language for the quick guide (English or Turkish)",
     )
     commands.add_parser("version", help="print the installed BlackForge version")
 
@@ -189,7 +223,9 @@ def _parser() -> argparse.ArgumentParser:
         help="print category names instead of package names",
     )
 
-    search = commands.add_parser("search", help="search names, descriptions, and categories")
+    search = commands.add_parser(
+        "search", help="search names, descriptions, and categories"
+    )
     search.add_argument("query", nargs="+", help="one or more search terms")
     search.add_argument("--category", help="restrict results to one category")
     search.add_argument(
@@ -212,7 +248,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     show.add_argument("name", help="package name, optionally source-qualified")
 
-    categories = commands.add_parser("categories", help="list categories and package counts")
+    categories = commands.add_parser(
+        "categories", help="list categories and package counts"
+    )
     categories.add_argument(
         "--source",
         choices=("all", "blackarch", "arch"),
@@ -270,7 +308,9 @@ def _parser() -> argparse.ArgumentParser:
         help="package names or source-qualified references such as arch:nmap",
     )
     install.add_argument("--category", help="install all tools in a category")
-    install.add_argument("--profile", type=Path, help="install packages stored in a profile")
+    install.add_argument(
+        "--profile", type=Path, help="install packages stored in a profile"
+    )
     install.add_argument(
         "--retries",
         type=_retry_count,
@@ -281,6 +321,11 @@ def _parser() -> argparse.ArgumentParser:
         "--setup-repo",
         action="store_true",
         help="enable the official BlackArch repository first when needed",
+    )
+    install.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="create a Snapper snapshot immediately before installation",
     )
 
     remove = commands.add_parser(
@@ -299,14 +344,23 @@ def _parser() -> argparse.ArgumentParser:
         help="also remove now-unused dependencies and config backups (-Rns)",
     )
 
-    upgrade = commands.add_parser("upgrade", help="upgrade the system or selected packages")
+    upgrade = commands.add_parser(
+        "upgrade", help="upgrade the system or selected packages"
+    )
     upgrade.add_argument(
         "names",
         nargs="*",
         help="optional package names; omit them for a full Arch system upgrade",
     )
+    upgrade.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="create a Snapper snapshot immediately before upgrading",
+    )
 
-    repo = commands.add_parser("repo", help="inspect or enable the official BlackArch repository")
+    repo = commands.add_parser(
+        "repo", help="inspect or enable the official BlackArch repository"
+    )
     repo_commands = repo.add_subparsers(dest="repo_command", required=True)
     repo_commands.add_parser("status", help="show whether [blackarch] is configured")
     repo_enable = repo_commands.add_parser(
@@ -319,7 +373,9 @@ def _parser() -> argparse.ArgumentParser:
         help="approve one manually reviewed strap.sh by its exact SHA-256",
     )
 
-    profile = commands.add_parser("profile", help="create or apply reproducible package profiles")
+    profile = commands.add_parser(
+        "profile", help="create or apply reproducible package profiles"
+    )
     profile_commands = profile.add_subparsers(dest="profile_command", required=True)
     profile_create = profile_commands.add_parser(
         "create",
@@ -596,6 +652,157 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="install after review; plan-only by default",
     )
+    collection_apply.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="create a Snapper snapshot immediately before installation",
+    )
+
+    audit = commands.add_parser(
+        "audit",
+        help="audit outdated, vulnerable, unavailable, and keyring states",
+    )
+    audit.add_argument(
+        "--output",
+        type=Path,
+        help="save the complete JSON report",
+    )
+
+    lock = commands.add_parser(
+        "lock",
+        help="create version locks, compare drift, or export an SBOM",
+    )
+    lock_commands = lock.add_subparsers(dest="lock_command", required=True)
+    lock_create = lock_commands.add_parser(
+        "create", help="record exact installed versions"
+    )
+    lock_create.add_argument("path", type=Path, help="destination lockfile")
+    lock_create.add_argument(
+        "names",
+        nargs="*",
+        help="security packages (default: all recognized installed tools)",
+    )
+    lock_compare = lock_commands.add_parser(
+        "compare", help="compare this machine with a lockfile"
+    )
+    lock_compare.add_argument("path", type=Path, help="lockfile to compare")
+    lock_sbom = lock_commands.add_parser(
+        "sbom", help="export CycloneDX or SPDX JSON from a lockfile"
+    )
+    lock_sbom.add_argument("path", type=Path, help="source lockfile")
+    lock_sbom.add_argument("output", type=Path, help="destination SBOM JSON")
+    lock_sbom.add_argument(
+        "--format", choices=("cyclonedx", "spdx"), default="cyclonedx"
+    )
+
+    snapshot = commands.add_parser(
+        "snapshot",
+        help="detect Snapper, create snapshots, or plan cache-based rollback",
+    )
+    snapshot_commands = snapshot.add_subparsers(dest="snapshot_command", required=True)
+    snapshot_commands.add_parser("status", help="check Btrfs and Snapper readiness")
+    snapshot_create = snapshot_commands.add_parser(
+        "create", help="plan or create one Snapper snapshot"
+    )
+    snapshot_create.add_argument("--description", default="BlackForge manual snapshot")
+    snapshot_create.add_argument(
+        "--apply", action="store_true", help="create the snapshot; plan-only by default"
+    )
+    snapshot_rollback = snapshot_commands.add_parser(
+        "rollback-plan", help="find exact versions in pacman's cache"
+    )
+    snapshot_rollback.add_argument(
+        "lockfile", type=Path, help="BlackForge lockfile with desired versions"
+    )
+    snapshot_rollback.add_argument(
+        "--cache", type=Path, default=Path("/var/cache/pacman/pkg")
+    )
+
+    community = commands.add_parser(
+        "community",
+        help="browse, validate, and apply reviewed data-only community presets",
+    )
+    community_commands = community.add_subparsers(
+        dest="community_command", required=True
+    )
+    community_commands.add_parser(
+        "list", help="list release-reviewed community presets"
+    )
+    community_show = community_commands.add_parser(
+        "show", help="show one reviewed preset"
+    )
+    community_show.add_argument("name")
+    community_validate = community_commands.add_parser(
+        "validate", help="validate a local preset without installing it"
+    )
+    community_validate.add_argument("path", type=Path)
+    community_apply = community_commands.add_parser(
+        "apply", help="plan or install a reviewed preset"
+    )
+    community_apply.add_argument("name")
+    community_apply.add_argument(
+        "--apply",
+        action="store_true",
+        help="install after review; plan-only by default",
+    )
+    community_apply.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="create a Snapper snapshot before installation",
+    )
+
+    aur = commands.add_parser(
+        "aur",
+        help="opt in to read-only AUR metadata discovery",
+    )
+    aur.add_argument(
+        "--enable-aur",
+        action="store_true",
+        help="acknowledge that AUR content is unsupported and user-submitted",
+    )
+    aur_commands = aur.add_subparsers(dest="aur_command", required=True)
+    aur_search = aur_commands.add_parser(
+        "search", help="search metadata; never download or execute PKGBUILDs"
+    )
+    aur_search.add_argument("query", nargs="+")
+    aur_search.add_argument("--limit", type=_positive_int, default=25)
+    aur_info_parser = aur_commands.add_parser(
+        "info", help="show metadata for one exact AUR package"
+    )
+    aur_info_parser.add_argument("name")
+
+    dashboard = commands.add_parser(
+        "dashboard",
+        help="build a portable HTML maintenance dashboard",
+    )
+    dashboard_commands = dashboard.add_subparsers(
+        dest="dashboard_command", required=True
+    )
+    dashboard_build = dashboard_commands.add_parser(
+        "build", help="write a script-free HTML report"
+    )
+    dashboard_build.add_argument("path", type=Path)
+    dashboard_build.add_argument(
+        "--record", action="store_true", help="append this observation to local history"
+    )
+    dashboard_build.add_argument(
+        "--history", type=Path, help="alternate JSON history path"
+    )
+
+    integration = commands.add_parser(
+        "integration",
+        help="generate systemd files or PackageKit-compatible status JSON",
+    )
+    integration_commands = integration.add_subparsers(
+        dest="integration_command", required=True
+    )
+    systemd = integration_commands.add_parser(
+        "systemd", help="generate an optional disabled user timer"
+    )
+    systemd.add_argument("path", type=Path, help="destination directory")
+    integration_commands.add_parser(
+        "packagekit", help="emit PackageKit-style package IDs and status values"
+    )
     return parser
 
 
@@ -696,6 +903,42 @@ def _print_command_help(
     return 0
 
 
+def _print_turkish_help(path: Sequence[str]) -> int:
+    topic = " ".join(path) if path else "baslangic"
+    guides = {
+        "baslangic": (
+            "BlackForge hizli Turkce yardim\n"
+            "  blackforge search nmap       Arac ara\n"
+            "  blackforge --dry-run install amass  Kurulumu onizle\n"
+            "  blackforge community list   Topluluk paketlerini listele\n"
+            "  blackforge audit            Guvenlik ve guncellik denetimi\n"
+            "  blackforge help --all       Butun Ingilizce komut ayrintilari\n"
+        ),
+        "install": (
+            "Kurulum: blackforge install [--snapshot] [--setup-repo] PAKET...\n"
+            "Once guvenli onizleme: blackforge --dry-run install PAKET\n"
+            "Onay istemeden devam etmek icin: -y (yalnizca plani inceledikten sonra).\n"
+        ),
+        "community": (
+            "Topluluk koleksiyonlari yalnizca incelenmis paket adlari icerir.\n"
+            "  blackforge community list\n"
+            "  blackforge community show KIMLIK\n"
+            "  blackforge community apply KIMLIK          Önizleme\n"
+            "  blackforge community apply KIMLIK --apply  Kurulum\n"
+        ),
+        "audit": (
+            "Denetim: blackforge audit [--output rapor.json]\n"
+            "Eski, guvenlik acigi bulunan, depoda olmayan paketleri ve anahtarligi ayirir.\n"
+        ),
+    }
+    if topic not in guides:
+        raise CatalogError(
+            f"Turkce hizli yardim konusu yok: {topic}. Ayrinti icin `blackforge help {topic}` kullanin."
+        )
+    print(guides[topic])
+    return 0
+
+
 def _display_tools(tools: Sequence, as_json: bool) -> None:
     payloads = [_tool_payload(tool) for tool in tools]
     if as_json:
@@ -782,7 +1025,9 @@ def _select_package_targets(args: argparse.Namespace, catalog: Catalog) -> list[
         )
     )
     if selectors > 1:
-        raise CatalogError("Choose package names, --category, or --profile; do not combine them")
+        raise CatalogError(
+            "Choose package names, --category, or --profile; do not combine them"
+        )
     if args.names:
         return _resolve_package_targets(catalog, args.names)
     if getattr(args, "category", None):
@@ -833,11 +1078,7 @@ def _target_name(target: str) -> str:
 
 
 def _target_ref(target: str) -> str:
-    return (
-        f"arch:{_target_name(target)}"
-        if "/" in target
-        else f"blackarch:{target}"
-    )
+    return f"arch:{_target_name(target)}" if "/" in target else f"blackarch:{target}"
 
 
 def _operation_versions(
@@ -845,8 +1086,7 @@ def _operation_versions(
     targets: Sequence[str],
 ) -> dict[str, str | None]:
     return {
-        _target_ref(target): installed.get(_target_name(target))
-        for target in targets
+        _target_ref(target): installed.get(_target_name(target)) for target in targets
     }
 
 
@@ -920,7 +1160,9 @@ def _recorded_package_operation(
     return 0
 
 
-def _run_install(args: argparse.Namespace, catalog: Catalog, backend: PacmanBackend) -> int:
+def _run_install(
+    args: argparse.Namespace, catalog: Catalog, backend: PacmanBackend
+) -> int:
     names = _select_package_targets(args, catalog)
     needs_blackarch = any("/" not in name for name in names)
     planning_backend = (
@@ -968,6 +1210,7 @@ def _run_install(args: argparse.Namespace, catalog: Catalog, backend: PacmanBack
     if not args.yes and not _confirm(f"Install {len(names)} package(s) with pacman?"):
         print("Cancelled.")
         return 1
+    _maybe_create_transaction_snapshot(args, "BlackForge package installation")
     return _recorded_package_operation(
         backend,
         "install",
@@ -1055,7 +1298,10 @@ def _show_tool_info(
         ("Repository", payload["repository"]),
         ("Version", payload["version"]),
         ("Installed", payload["installed_version"] or "no"),
-        ("Category", payload.get("category") or ", ".join(payload.get("categories", []))),
+        (
+            "Category",
+            payload.get("category") or ", ".join(payload.get("categories", [])),
+        ),
         ("Maintenance", maintenance.get("status", "unknown")),
         ("Last activity", maintenance.get("last_activity_at") or "unknown"),
         ("Evidence", maintenance.get("evidence_url") or "-"),
@@ -1077,20 +1323,26 @@ def _repo_enable(args: argparse.Namespace, backend: PacmanBackend) -> int:
     try:
         print(f"Downloaded official script: {script}")
         print(f"SHA-256: {digest}")
-        checksum_state = "matched" if checksum_matched else "MISMATCH - exact SHA-256 approved"
+        checksum_state = (
+            "matched" if checksum_matched else "MISMATCH - exact SHA-256 approved"
+        )
         print(f"Official SHA-1 check: {sha1} ({checksum_state})")
         if not checksum_matched:
             print(
                 "WARNING: The downloaded root setup script does not match the "
                 "pinned BlackArch checksum."
             )
-        preview = "\n".join(script.read_text(encoding="utf-8", errors="replace").splitlines()[:12])
+        preview = "\n".join(
+            script.read_text(encoding="utf-8", errors="replace").splitlines()[:12]
+        )
         print("\nFirst 12 lines:\n")
         print(preview)
         if args.dry_run:
             print("\nDry run: the script was not executed.")
             return 0
-        if not args.yes and not _confirm("Run this official BlackArch setup script as root?"):
+        if not args.yes and not _confirm(
+            "Run this official BlackArch setup script as root?"
+        ):
             print("Cancelled.")
             return 1
         return backend.enable_repo(script).returncode
@@ -1101,7 +1353,9 @@ def _repo_enable(args: argparse.Namespace, backend: PacmanBackend) -> int:
             pass
 
 
-def _interactive(catalog: Catalog, backend: PacmanBackend, args: argparse.Namespace) -> int:
+def _interactive(
+    catalog: Catalog, backend: PacmanBackend, args: argparse.Namespace
+) -> int:
     while True:
         print(
             "\nBlackForge\n"
@@ -1397,10 +1651,7 @@ def _handle_mirror(args: argparse.Namespace) -> int:
             if args.json:
                 emit_json(best.to_dict())
             else:
-                print(
-                    f"Recommended: {best.mirror.url} "
-                    f"({best.latency_ms:.1f} ms)"
-                )
+                print(f"Recommended: {best.mirror.url} ({best.latency_ms:.1f} ms)")
             return 0
         if args.json:
             emit_json([result.to_dict() for result in results])
@@ -1430,8 +1681,7 @@ def _handle_mirror(args: argparse.Namespace) -> int:
         if selected.scheme != "https":
             raise MirrorError("Only HTTPS mirrors may be applied")
         would_change = not selected.enabled or any(
-            mirror.enabled and mirror.url != selected.url
-            for mirror in mirrors
+            mirror.enabled and mirror.url != selected.url for mirror in mirrors
         )
         payload = {
             "operation": "mirror-apply",
@@ -1598,10 +1848,7 @@ def _handle_environment(
 
 def _handle_maintenance(args: argparse.Namespace, catalog: Catalog) -> int:
     snapshot = load_bundled_maintenance(stale_years=args.stale_years, required=True)
-    records = [
-        (name, snapshot.for_tool(name))
-        for name in catalog.by_name
-    ]
+    records = [(name, snapshot.for_tool(name)) for name in catalog.by_name]
     if args.maintenance_command == "summary":
         counts = {"current": 0, "stale": 0, "unknown": 0, "archived": 0}
         for _, evidence in records:
@@ -1613,9 +1860,7 @@ def _handle_maintenance(args: argparse.Namespace, catalog: Catalog) -> int:
             **counts,
             "cutoff_years": args.stale_years,
             "generated_at": (
-                snapshot.generated_at.isoformat()
-                if snapshot.generated_at
-                else None
+                snapshot.generated_at.isoformat() if snapshot.generated_at else None
             ),
         }
         if args.json:
@@ -1624,16 +1869,12 @@ def _handle_maintenance(args: argparse.Namespace, catalog: Catalog) -> int:
             table(["Maintenance view", "Tools"], payload.items())
         return 0
     if args.status == "current" and args.group not in {None, "current"}:
-        raise MaintenanceError(
-            "Status 'current' belongs to --group current"
-        )
-    if (
-        args.status in {"stale", "unknown", "archived"}
-        and args.group not in {None, "attention"}
-    ):
-        raise MaintenanceError(
-            f"Status {args.status!r} belongs to --group attention"
-        )
+        raise MaintenanceError("Status 'current' belongs to --group current")
+    if args.status in {"stale", "unknown", "archived"} and args.group not in {
+        None,
+        "attention",
+    }:
+        raise MaintenanceError(f"Status {args.status!r} belongs to --group attention")
     group = args.group
     if group is None:
         group = "current" if args.status == "current" else "attention"
@@ -1728,12 +1969,232 @@ def _handle_collection(
     if not args.yes and not _confirm(f"Install collection {preset.name}?"):
         print("Cancelled.")
         return 1
+    _maybe_create_transaction_snapshot(args, f"BlackForge collection: {preset.id}")
     return _recorded_package_operation(
         backend,
         "install",
         targets,
         lambda: backend.install(targets),
     )
+
+
+def _maybe_create_transaction_snapshot(
+    args: argparse.Namespace, description: str
+) -> None:
+    if not getattr(args, "snapshot", False):
+        return
+    result = create_snapshot(description, apply=not args.dry_run)
+    if result.planned:
+        print("Would create Snapper snapshot: " + command_preview(result.args))
+    else:
+        snapshot_id = result.stdout.strip() or "created"
+        print(f"Snapper snapshot: {snapshot_id}")
+
+
+def _handle_community(args: argparse.Namespace, backend: PacmanBackend) -> int:
+    if args.community_command == "list":
+        presets = bundled_community_presets()
+        if args.json:
+            emit_json([preset.to_dict() for preset in presets])
+        else:
+            table(
+                ["ID", "Name", "Packages", "Authors", "Tags"],
+                (
+                    (
+                        preset.id,
+                        preset.name,
+                        len(preset.packages),
+                        ", ".join(preset.authors),
+                        ", ".join(preset.tags),
+                    )
+                    for preset in presets
+                ),
+            )
+        return 0
+    if args.community_command == "validate":
+        preset = read_community_preset(args.path)
+        payload = {
+            **preset.to_dict(),
+            "resolved_packages": [
+                item.to_dict() for item in preset.resolved_packages()
+            ],
+        }
+        if args.json:
+            emit_json(payload)
+        else:
+            print(
+                f"Valid data-only preset: {preset.id} ({len(preset.packages)} packages)"
+            )
+        return 0
+    preset = resolve_community_preset(args.name)
+    packages = preset.resolved_packages()
+    payload = {
+        **preset.to_dict(),
+        "resolved_packages": [item.to_dict() for item in packages],
+    }
+    if args.community_command == "show":
+        if args.json:
+            emit_json(payload)
+        else:
+            print(f"{preset.name}\n{preset.description}\n")
+            table(
+                ["Source", "Repository", "Package"],
+                ((item.source, item.repository, item.name) for item in packages),
+            )
+        return 0
+    targets = [item.package_target for item in packages]
+    plan = plan_install(
+        targets, backend=backend if backend.supported else None, assume_yes=args.yes
+    )
+    _display_plan(plan, args.json and (not args.apply or args.dry_run))
+    if not args.apply or args.dry_run:
+        return 0
+    backend.require_supported()
+    if any("/" not in target for target in targets) and not backend.repo_enabled:
+        raise BackendError("Enable BlackArch first with `blackforge setup`")
+    if not args.yes and not _confirm(
+        f"Install reviewed community preset {preset.name}?"
+    ):
+        print("Cancelled.")
+        return 1
+    _maybe_create_transaction_snapshot(
+        args, f"BlackForge community preset: {preset.id}"
+    )
+    return _recorded_package_operation(
+        backend, "install", targets, lambda: backend.install(targets)
+    )
+
+
+def _handle_lock(args: argparse.Namespace, backend: PacmanBackend) -> int:
+    if args.lock_command == "create":
+        value = create_lock(backend, args.names)
+        if not args.dry_run:
+            write_lock(args.path, value)
+        if args.json:
+            emit_json({**value, "output": str(args.path), "saved": not args.dry_run})
+        else:
+            action = "Would write" if args.dry_run else "Wrote"
+            print(f"{action} {len(value['packages'])} locked packages to {args.path}")
+        return 0
+    value = read_lock(args.path)
+    if args.lock_command == "compare":
+        backend.require_supported()
+        result = compare_lock(value, backend.installed_packages())
+        if args.json:
+            emit_json(result)
+        else:
+            table(
+                ["State", "Package", "Locked", "Installed"],
+                (
+                    (
+                        state,
+                        item["name"],
+                        item["version"],
+                        item.get("installed_version") or "-",
+                    )
+                    for state, key in (
+                        ("missing", "missing"),
+                        ("drift", "version_drift"),
+                        ("matched", "matched"),
+                    )
+                    for item in result[key]
+                ),
+            )
+        return 0 if result["matches"] else 2
+    sbom = sbom_from_lock(value, args.format)
+    if not args.dry_run:
+        atomic_write_json(args.output, sbom)
+    if args.json:
+        emit_json(
+            {
+                "output": str(args.output),
+                "format": args.format,
+                "saved": not args.dry_run,
+            }
+        )
+    else:
+        print(
+            ("Would write" if args.dry_run else "Wrote")
+            + f" {args.format} SBOM to {args.output}"
+        )
+    return 0
+
+
+def _handle_snapshot(args: argparse.Namespace) -> int:
+    if args.snapshot_command == "status":
+        value = snapshot_status().to_dict()
+        emit_json(value) if args.json else table(["Check", "Value"], value.items())
+        return 0 if value["ready"] else 2
+    if args.snapshot_command == "create":
+        result = create_snapshot(
+            args.description, apply=args.apply and not args.dry_run
+        )
+        payload = {
+            "command": result.args,
+            "planned": result.planned,
+            "snapshot_id": result.stdout.strip() or None,
+        }
+        emit_json(payload) if args.json else table(["Field", "Value"], payload.items())
+        return 0
+    lock = read_lock(args.lockfile)
+    versions = {
+        str(item["name"]): str(item["version"])
+        for item in lock["packages"]
+        if isinstance(item, dict)
+    }
+    value = pacman_cache_rollback_plan(versions, cache=args.cache)
+    emit_json(value) if args.json else table(
+        ["Field", "Value"],
+        (
+            ("complete", value["complete"]),
+            ("archives", len(value["archives"])),
+            ("missing", len(value["missing"])),
+            (
+                "command",
+                command_preview(value["command"])
+                if value["command"]
+                else "unavailable",
+            ),
+        ),
+    )
+    return 0 if value["complete"] else 2
+
+
+def _handle_aur(args: argparse.Namespace) -> int:
+    if not args.enable_aur:
+        raise AurError(
+            "AUR discovery is opt-in. Re-run with `--enable-aur`; BlackForge will read metadata only."
+        )
+    if args.aur_command == "search":
+        value = search_aur(" ".join(args.query), limit=args.limit)
+        if args.json:
+            emit_json(value)
+        else:
+            table(
+                [
+                    "Name",
+                    "Version",
+                    "Maintainer",
+                    "Votes",
+                    "Out of date",
+                    "Description",
+                ],
+                (
+                    (
+                        item["name"],
+                        item["version"],
+                        item["maintainer"] or "orphan",
+                        item["votes"],
+                        item["out_of_date"] or "no",
+                        item["description"],
+                    )
+                    for item in value
+                ),
+            )
+        return 0 if value else 1
+    value = aur_info(args.name)
+    emit_json(value) if args.json else table(["Field", "Value"], value.items())
+    return 0
 
 
 def run(argv: Sequence[str] | None = None) -> int:
@@ -1748,6 +2209,8 @@ def run(argv: Sequence[str] | None = None) -> int:
             return 0
 
     if args.command == "help":
+        if args.lang == "tr":
+            return _print_turkish_help(args.path)
         return _print_command_help(parser, args.path, show_all=args.all)
     if args.command == "version":
         print(f"blackforge {__version__}")
@@ -1760,7 +2223,11 @@ def run(argv: Sequence[str] | None = None) -> int:
         destination = args.output or default_cache_path()
         if not args.dry_run:
             catalog.write(destination)
-        result = {"path": str(destination), "tools": len(catalog.tools), "source": catalog.source}
+        result = {
+            "path": str(destination),
+            "tools": len(catalog.tools),
+            "source": catalog.source,
+        }
         if args.json:
             emit_json({**result, "saved": not args.dry_run})
         elif args.dry_run:
@@ -1800,6 +2267,35 @@ def run(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "collection":
         return _handle_collection(args, backend)
+    if args.command == "community":
+        return _handle_community(args, backend)
+    if args.command == "audit":
+        value = audit_host(backend)
+        payload = value.to_dict()
+        if args.output and not args.dry_run:
+            atomic_write_json(args.output, payload)
+        if args.json:
+            emit_json(payload)
+        else:
+            states = payload["states"]
+            table(
+                ["State", "Count"],
+                (
+                    ("outdated", len(states["outdated"])),
+                    ("vulnerable", len(states["vulnerable"])),
+                    ("unavailable", len(states["unavailable"])),
+                    ("keyring healthy", payload["keyring"]["healthy"]),
+                ),
+            )
+            if not payload["arch_audit"]["available"]:
+                print("\nAdvisory helper: " + str(payload["arch_audit"]["note"]))
+        return value.exit_code
+    if args.command == "lock":
+        return _handle_lock(args, backend)
+    if args.command == "snapshot":
+        return _handle_snapshot(args)
+    if args.command == "aur":
+        return _handle_aur(args)
     if args.command == "setup":
         return _repo_enable(args, backend)
     if args.command == "repo":
@@ -1819,6 +2315,62 @@ def run(argv: Sequence[str] | None = None) -> int:
         return _handle_environment(args, catalog, backend)
     if args.command == "maintenance":
         return _handle_maintenance(args, catalog)
+    if args.command == "dashboard":
+        history = (
+            args.history
+            or Path.home() / ".local/state/blackforge/dashboard-history.json"
+        )
+        available_count = None
+        if backend.supported and backend.repo_enabled:
+            try:
+                available_count = len(backend.available_packages())
+            except BackendError:
+                available_count = None
+        value = build_dashboard(
+            args.path,
+            catalog,
+            load_bundled_maintenance(),
+            history_path=history,
+            record=args.record and not args.dry_run,
+            write=not args.dry_run,
+            available_count=available_count,
+        )
+        if args.json:
+            emit_json({**value, "saved": not args.dry_run})
+        else:
+            print(
+                ("Would build" if args.dry_run else "Built")
+                + f" dashboard: {args.path}"
+            )
+        return 0
+    if args.command == "integration":
+        if args.integration_command == "systemd":
+            if args.dry_run:
+                value = {
+                    "service": str(args.path / "blackforge-update.service"),
+                    "timer": str(args.path / "blackforge-update.timer"),
+                    "saved": False,
+                }
+            else:
+                executable = shutil.which("blackforge") or str(Path(sys.argv[0]).resolve())
+                service, timer = write_systemd_units(
+                    args.path,
+                    executable=executable,
+                )
+                value = {"service": str(service), "timer": str(timer), "saved": True}
+            if args.json:
+                emit_json(value)
+            else:
+                table(
+                    ["File", "Path"],
+                    (("service", value["service"]), ("timer", value["timer"])),
+                )
+                print(
+                    "Enable manually after review: systemctl --user enable --now blackforge-update.timer"
+                )
+            return 0
+        emit_json(packagekit_status(backend, catalog, bundled_arch_catalog()))
+        return 0
     if args.command == "tui":
         selected = run_tui([*catalog.tools, *bundled_arch_catalog().tools])
         if not selected:
@@ -1905,9 +2457,13 @@ def run(argv: Sequence[str] | None = None) -> int:
             )
         )
         tools = tools[: args.limit]
-        if args.category and not tools and (
-            args.category not in catalog.categories
-            and args.category not in bundled_arch_catalog().categories
+        if (
+            args.category
+            and not tools
+            and (
+                args.category not in catalog.categories
+                and args.category not in bundled_arch_catalog().categories
+            )
         ):
             raise CatalogError(f"Unknown category: {args.category}")
         _display_tools(tools, args.json)
@@ -1939,10 +2495,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         else:
             table(
                 ["Source", "Category", "Tools"],
-                (
-                    (item["source"], item["category"], item["tools"])
-                    for item in values
-                ),
+                ((item["source"], item["category"], item["tools"]) for item in values),
             )
         return 0
     if args.command == "doctor":
@@ -1953,7 +2506,9 @@ def run(argv: Sequence[str] | None = None) -> int:
         tools = catalog.tools if args.all else resolve_names(catalog, args.names)
         if args.remote or args.repo_db:
             if args.executables:
-                raise CatalogError("--executables requires local pacman, not --remote/--repo-db")
+                raise CatalogError(
+                    "--executables requires local pacman, not --remote/--repo-db"
+                )
             snapshot = (
                 read_repository_database(args.repo_db)
                 if args.repo_db
@@ -1982,7 +2537,10 @@ def run(argv: Sequence[str] | None = None) -> int:
                     for state in audit.states
                 ),
             )
-            print("\nSummary: " + ", ".join(f"{key}={value}" for key, value in audit.counts.items()))
+            print(
+                "\nSummary: "
+                + ", ".join(f"{key}={value}" for key, value in audit.counts.items())
+            )
         return audit.exit_code
     if args.command in {"install", "get", "add"}:
         return _run_install(args, catalog, backend)
@@ -2013,11 +2571,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             lambda: backend.remove(names, purge=args.purge),
         )
     if args.command == "upgrade":
-        targets = (
-            _resolve_package_targets(catalog, args.names)
-            if args.names
-            else []
-        )
+        targets = _resolve_package_targets(catalog, args.names) if args.names else []
         plan = plan_upgrade(
             targets,
             backend=backend if backend.supported else None,
@@ -2033,6 +2587,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         ):
             print("Cancelled.")
             return 1
+        _maybe_create_transaction_snapshot(args, "BlackForge system upgrade")
         if not targets:
             return backend.upgrade().returncode
         return _recorded_package_operation(
@@ -2078,7 +2633,13 @@ def run(argv: Sequence[str] | None = None) -> int:
                 handle = io.StringIO(newline="")
                 writer = csv.DictWriter(
                     handle,
-                    fieldnames=["name", "version", "description", "category", "website"],
+                    fieldnames=[
+                        "name",
+                        "version",
+                        "description",
+                        "category",
+                        "website",
+                    ],
                 )
                 writer.writeheader()
                 writer.writerows(tool.to_dict() for tool in catalog.tools)
@@ -2099,17 +2660,23 @@ def main() -> None:
     try:
         raise SystemExit(run())
     except (
+        AurError,
         BackendError,
         CatalogError,
+        CommunityPresetError,
+        DashboardError,
         EnvironmentFileError,
         HistoryError,
+        LockfileError,
         MaintenanceError,
         MirrorError,
         PlannerError,
         PresetError,
         ProfileError,
         RepositoryError,
+        SecurityAuditError,
         SelfUpdateError,
+        SnapshotError,
         SourceError,
         TransactionError,
         TuiError,

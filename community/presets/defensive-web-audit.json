@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "defensive-web-audit",
+  "name": "Defensive web audit",
+  "description": "A compact, reviewable set for authorized web inventory and defensive assessment.",
+  "authors": ["@johnnypatty"],
+  "tags": ["web", "defensive"],
+  "packages": ["blackarch:amass", "blackarch:httpx", "blackarch:nuclei", "arch:extra/nmap"],
+  "license": "CC0-1.0",
+  "reviewed": true
+}

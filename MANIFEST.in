@@ -1,0 +1,3 @@
+include docs/blackforge.1
+include packaging/systemd/blackforge-update.service
+include packaging/systemd/blackforge-update.timer
